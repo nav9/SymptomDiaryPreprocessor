@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symptom Diary Pre-processor</title>
+    <link rel="stylesheet" href="static/spectre.min.css">
+    <link rel="stylesheet" href="static/all.min.css">
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul class="nav">
+            <li><a href="index.html" class="contrast"><strong>Symptom Diary</strong></a></li>
+        </ul>
+
+        <ul class="nav">
+            <li><a href="#" id="theme-toggle"><i class="fa-solid fa-circle-half-stroke"></i></a></li>
+            <li><a href="index.html" >Parse</a></li>
+            <li><a href="validate.html">Validate</a></li>
+            <li><a href="define.html">Definitions</a></li>
+            <li><a href="expand.html">Expand</a></li>
+            <li><a href="visualize.html">Visualize</a></li>
+            <li><a href="analyze.html">Analyze</a></li>
+            <li><a href="encrypt.html">Encrypt</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+            <li><a href="contact.html">Contact</a></li>
+
+        </ul>
+    </nav>
+
+    <main class="container">
+        <div class="docs-content">
+        <h2 class="docs-title">Symptom Diary Pre-processor</h2>
+        <p class="docs-subtitle">An offline tool to process, validate, and visualize your symptom diary data.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">File Input</div>
+          <div class="card-body">
+            <div id="drop-zone" class="empty">
+                <p class="empty-title h5">Drag & drop your symptom diary files here</p>
+                <p class="empty-subtitle">Or click to select files</p>
+                <div class="empty-action">
+                <input type="file" id="file-input" multiple hidden>
+                </div>
+            </div>
+            <div id="file-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Configuration</div>
+          <div class="card-body">
+            <div class="form-group">
+                <label class="form-label" for="year-format">Year from filename</label>
+                <input class="form-input" type="text" id="year-format" value="HealthYYYY.txt" placeholder="HealthYYYY.txt">
+                <p class="form-input-hint">e.g., `HealthYYYY.txt`. Delete if not applicable.</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="date-format">Date format</label>
+                <input class="form-input" type="text" id="date-format" value="Date DD MMM" placeholder="Date DD MMM">
+                <p class="form-input-hint">e.g., `DD MMM` or `MMM DD YY`.</p>
+            </div>
+            <footer>
+                <button id="process-btn">Process Files</button>
+                <button id="save-btn" class="secondary" style="display:none;">Save Processed Data</button>
+            </footer>
+        </article>
+    </main>
+
+    <dialog id="error-modal">
+      <div class="modal-container">
+        <div class="modal-header">
+         <a href="#close" aria-label="Close" class="close"></a>
+         Parsing Error
+        </div>
+        <div class="modal-body">
+         <p id="error-info"></p>
+         <pre><code id="error-context"></code></pre>
+         <input type="text" id="error-line-input" class="form-input">
+        </div>
+        <div class="modal-footer">
+         <button id="submit-fix-btn" class="btn btn-primary">Validate & Continue</button>
+        </div>
+      </div>
+    </dialog>
+    <script defer src="static/jquery.min.js"></script>
+    <script defer src="static/moment.min.js"></script>
+    <script defer src="static/papaparse.min.js"></script>
+    <script defer src="app.js"></script>
+</body>
+</html>
