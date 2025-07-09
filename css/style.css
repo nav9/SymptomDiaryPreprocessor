@@ -1,15 +1,123 @@
-:root { --font-size: 14px; --spacing: 0.5rem; }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: var(--font-size); }
-main { padding: 1rem; }
-.drop-zone { border: 2px dashed #555; border-radius: 5px; padding: 2rem; text-align: center; transition: background-color 0.2s ease-in-out; }
-.drop-zone.dragover { background-color: #333; }
-.config-grid { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; }
-.config-grid label { margin-bottom: 0; }
-#menu { position: fixed; top: 0; left: -280px; width: 250px; height: 100%; background: var(--card-background-color); box-shadow: 0 0 15px rgba(0,0,0,0.2); transition: left 0.3s ease; z-index: 1000; padding: 1rem; opacity: 0.95; }
-#menu.open { left: 0; }
-#menu nav a { display: block; padding: 0.75rem 1rem; text-decoration: none; color: var(--color); border-bottom: 1px solid var(--muted-border-color); }
-#menu-toggle { position: fixed; top: 1rem; left: 1rem; z-index: 1001; }
-nav ul {
-    list-style: none;
-    padding-left: 0;
+/* Import Spectre Framework */
+@import url('../static/spectre.min.css');
+@import url('../static/spectre-exp.min.css');
+@import url('../static/spectre-icons.min.css');
+@import url('../static/all.min.css');
+
+/* --- Theme and Layout --- */
+:root {
+    --primary-color: #5755d9;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-size: 14px;
+    background: #303742;
+    color: #e7e9ed;
+}
+
+/* --- Compact Navbar --- */
+.navbar {
+    padding: 0.2rem 1rem;
+    background: #3a4351;
+    border-bottom: 1px solid #444;
+}
+.navbar .navbar-section a, .navbar .btn {
+    color: #dadce1;
+}
+.navbar .navbar-brand {
+    color: #e7e9ed;
+    font-weight: bold;
+}
+
+/* Step-like navigation */
+.step.nav-step {
+    min-width: 80px;
+    padding: .2rem 0;
+}
+.step.nav-step:not(:last-child)::after {
+    height: .1rem;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.step.nav-step .step-icon {
+    height: 1.2rem;
+    width: 1.2rem;
+    line-height: 1.1rem;
+    font-size: 0.7rem;
+    background: #505d70;
+}
+.step.nav-step.active .step-icon, .step.nav-step a:hover .step-icon {
+    background: var(--primary-color);
+}
+
+
+/* --- General Components --- */
+.card {
+    border: 1px solid #444;
+    background: #3a4351;
+    box-shadow: none;
+    margin-bottom: 1rem;
+}
+.card .card-header, .card .card-footer {
+    background: #414a58;
+    border-bottom: 1px solid #444;
+    padding: .6rem;
+}
+.card .card-footer {
+    border-top: 1px solid #444;
+    border-bottom: 0;
+}
+
+/* --- Configuration Section (Accordion) --- */
+.accordion input:checked ~ .accordion-body,
+.accordion[open] .accordion-body {
+    max-height: 50rem; /* Adjust as needed */
+}
+.accordion .accordion-header {
+    padding: .4rem .6rem;
+    background: #414a58;
+    color: #babbbe;
+    font-size: 0.9em;
+}
+
+/* --- Validation Page Specifics --- */
+.validation-row {
+    display: flex;
+    align-items: center;
+    padding: .3rem .5rem;
+    border-bottom: 1px solid #444;
+    font-family: 'SF Mono', 'Courier New', monospace;
+    font-size: 0.9em;
+}
+.validation-row:hover {
+    background: #414a58;
+}
+.validation-row .line-status {
+    flex: 0 0 20px;
+}
+.validation-row .line-content {
+    flex-grow: 1;
+}
+.validation-row .form-input {
+    height: 1.8rem;
+    font-size: 1em;
+    border-color: #c0392b;
+}
+.validation-row .btn-sm {
+    height: 1.8rem;
+}
+.line-status .icon-check { color: #2ecc71; }
+.line-status .icon-edit { color: #f1c40f; }
+
+.page-header {
+    padding: 1rem;
+    background: #414a58;
+    border-radius: 3px;
+    margin-bottom: 1rem;
+}
+
+/* --- General Utility --- */
+.hidden {
+    display: none !important;
 }

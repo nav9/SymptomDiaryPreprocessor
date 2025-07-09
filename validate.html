@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validate</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dark">
+    <header class="navbar">
+        <section class="navbar-section">
+            <a href="index.html" class="navbar-brand mr-2">Symptom Diary Preprocessor</a>
+            <ul class="step">
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">1. Upload</div></a></li>
+                <li class="step-item active"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">2. Validate</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">3. Define</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">4. Expand</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">5. Visualize</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">6. Encrypt</div></a></li>
+            </ul>
+        </section>
+        <section class="navbar-section">
+            <a href="faq.html" class="btn btn-link">FAQ</a>
+            <a href="contact.html" class="btn btn-link">Contact</a>
+        </section>
+    </header>
+
+    <main class="container grid-lg mt-2">
+        <h4><i class="fa-solid fa-check-to-slot"></i> Step 2: Validate Data</h4>
+        <p>Review each entry. Lines with errors are highlighted for correction. Fix them to proceed.</p>
+
+        <div id="no-data-view" class="empty hidden">
+            <div class="empty-icon"><i class="fa-solid fa-file-excel fa-3x"></i></div>
+            <p class="empty-title h5">No data to validate</p>
+            <p class="empty-subtitle">Go back to the parse page or upload a previously saved validation file to continue.</p>
+            <div class="empty-action">
+                <label class="btn btn-primary"><i class="fa-solid fa-upload"></i> Upload Validation File
+                    <input type="file" id="upload-validation-file" hidden accept=".json">
+                </label>
+                <a href="index.html" class="btn"><i class="fa-solid fa-arrow-left"></i> Back to Parse</a>
+            </div>
+        </div>
+
+        <div id="data-view" class="hidden">
+            <div class="page-header d-flex">
+                <div class="mr-2">
+                    <button id="save-validation-btn" class="btn btn-primary"><i class="fa-solid fa-save"></i> Save Progress</button>
+                </div>
+                <div class="toast toast-success" id="error-summary">
+                    <i class="fa-solid fa-thumbs-up"></i> All lines are valid!
+                </div>
+                <div class="ml-2">
+                    <button id="proceed-btn" class="btn btn-success hidden"><i class="fa-solid fa-arrow-right"></i> Proceed to Definitions</button>
+                </div>
+            </div>
+            <div id="validation-output" class="card">
+                </div>
+        </div>
+    </main>
+
+    <script defer src="static/jquery.min.js"></script>
+    <script defer src="static/moment.min.js"></script>
+    <script defer src="validation.js"></script>
+</body>
+</html>

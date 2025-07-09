@@ -1,98 +1,98 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Symptom Diary Pre-processor</title>
-    <link rel="stylesheet" href="static/spectre.min.css">
-    <link rel="stylesheet" href="static/all.min.css">
-    
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    </style>
-
+    <title>Upload</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-    <nav class="container-fluid">
-        <ul class="nav">
-            <li><a href="index.html" class="contrast"><strong>Symptom Diary</strong></a></li>
-        </ul>
+<body class="dark">
+    <header class="navbar">
+        <section class="navbar-section">
+            <a href="index.html" class="navbar-brand mr-2">Symptom Diary Preprocessor</a>
+            <ul class="step">
+                <li class="step-item active"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">1. Upload</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">2. Validate</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">3. Define</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">4. Expand</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">5. Visualize</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">6. Encrypt</div></a></li>
+            </ul>
+        </section>
+        <section class="navbar-section">
+            <a href="faq.html" class="btn btn-link">FAQ</a>
+            <a href="contact.html" class="btn btn-link">Contact</a>
+        </section>
+    </header>
 
-        <ul class="nav">
-            <li><a href="#" id="theme-toggle"><i class="fa-solid fa-circle-half-stroke"></i></a></li>
-            <li><a href="index.html" >Parse</a></li>
-            <li><a href="validate.html">Validate</a></li>
-            <li><a href="define.html">Definitions</a></li>
-            <li><a href="expand.html">Expand</a></li>
-            <li><a href="visualize.html">Visualize</a></li>
-            <li><a href="analyze.html">Analyze</a></li>
-            <li><a href="encrypt.html">Encrypt</a></li>
-            <li><a href="faq.html">FAQ</a></li>
-            <li><a href="contact.html">Contact</a></li>
+    <main class="container grid-lg mt-2">
+        <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Step 1: Parse Raw Data</h4>
+        <p>Start by providing your symptom diary text file. The tool will read your data and prepare it for validation.</p>        
 
-        </ul>
-    </nav>
-
-    <main class="container">
-        <div class="docs-content">
-        <h2 class="docs-title">Symptom Diary Pre-processor</h2>
-        <p class="docs-subtitle">An offline tool to process, validate, and visualize your symptom diary data.</p>
+        <div class="card mt-2">
+            <div class="card-header">
+                <div class="card-title h6">File Input</div>
+            </div>
+            <div class="card-body">
+                <div id="drop-zone" class="tile tile-centered" style="border: 2px dashed #555; padding: 2rem; cursor: pointer;">
+                    <div class="tile-content">
+                        <p class="tile-title text-bold">Drag & drop files here</p>
+                        <p class="tile-subtitle">or click to select files.</p>
+                    </div>
+                    <div class="tile-action">
+                        <i class="fa-solid fa-file-upload fa-2x"></i>
+                    </div>
+                </div>
+                <input type="file" id="file-input" multiple hidden>
+                <div id="file-list" class="mt-2"></div>
+            </div>
+            <div class="card-footer">
+                <button class="btn btn-sm" id="dummy-data-btn"><i class="fa-solid fa-flask"></i> Use Dummy Data</button>
+            </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">File Input</div>
-          <div class="card-body">
-            <div id="drop-zone" class="empty">
-                <p class="empty-title h5">Drag & drop your symptom diary files here</p>
-                <p class="empty-subtitle">Or click to select files</p>
-                <div class="empty-action">
-                <input type="file" id="file-input" multiple hidden>
+        <button class="btn btn-primary btn-lg btn-block" id="process-btn"><i class="fa-solid fa-play"></i> Start Processing</button>
+         
+        <br>
+
+        <section class="accordion">
+            <input type="checkbox" id="accordion-1" name="accordion-checkbox" hidden>
+            <label class="accordion-header c-hand" for="accordion-1">
+                <i class="icon icon-arrow-right mr-1"></i>
+                Optional: Advanced Configuration
+            </label>
+            <div class="accordion-body">
+                <p class="text-small text-gray">Tweak these settings only if your data format is different from the default. The parser uses these rules to interpret your diary entries.</p>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="year-format" value="HealthYYYY.txt">
+                    <label class="form-label text-small" for="year-format">Year in Filename</label>
+                </div>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="date-format" value="DD MMM">
+                    <label class="form-label text-small" for="date-format">Date Line Format</label>
+                </div>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="time-format" value="HH:mm">
+                    <label class="form-label text-small" for="time-format">Time Format</label>
+                </div>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="observation-char" value="//">
+                    <label class="form-label text-small" for="observation-char">Observation Line Start</label>
+                </div>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="separator-chars" value=".,">
+                    <label class="form-label text-small" for="separator-chars">Data Separators</label>
+                </div>
+                <div class="form-group">
+                    <input class="form-input input-sm" type="text" id="ignore-chars" value=";">
+                    <label class="form-label text-small" for="ignore-chars">Ignore at Line End</label>
                 </div>
             </div>
-            <div id="file-list"></div>
-          </div>
-        </div>
+        </section>
 
-        <div class="card">
-          <div class="card-header">Configuration</div>
-          <div class="card-body">
-            <div class="form-group">
-                <label class="form-label" for="year-format">Year from filename</label>
-                <input class="form-input" type="text" id="year-format" value="HealthYYYY.txt" placeholder="HealthYYYY.txt">
-                <p class="form-input-hint">e.g., `HealthYYYY.txt`. Delete if not applicable.</p>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="date-format">Date format</label>
-                <input class="form-input" type="text" id="date-format" value="Date DD MMM" placeholder="Date DD MMM">
-                <p class="form-input-hint">e.g., `DD MMM` or `MMM DD YY`.</p>
-            </div>
-            <footer>
-                <button id="process-btn">Process Files</button>
-                <button id="save-btn" class="secondary" style="display:none;">Save Processed Data</button>
-            </footer>
-        </article>
     </main>
 
-    <dialog id="error-modal">
-      <div class="modal-container">
-        <div class="modal-header">
-         <a href="#close" aria-label="Close" class="close"></a>
-         Parsing Error
-        </div>
-        <div class="modal-body">
-         <p id="error-info"></p>
-         <pre><code id="error-context"></code></pre>
-         <input type="text" id="error-line-input" class="form-input">
-        </div>
-        <div class="modal-footer">
-         <button id="submit-fix-btn" class="btn btn-primary">Validate & Continue</button>
-        </div>
-      </div>
-    </dialog>
     <script defer src="static/jquery.min.js"></script>
-    <script defer src="static/moment.min.js"></script>
-    <script defer src="static/papaparse.min.js"></script>
     <script defer src="app.js"></script>
 </body>
 </html>
