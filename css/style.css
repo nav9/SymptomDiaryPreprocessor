@@ -2,15 +2,31 @@
 @import url('../static/spectre.min.css');
 @import url('../static/all.min.css');
 
-/* --- Theme and Layout --- */
+/* --- Dark Theme Overhaul (Bootstrap-inspired) --- */
 :root {
-    --primary-color: #049bff;
-    --dark-bg: #2c3440;
-    --dark-bg-card: #3a4351;
-    --dark-border: #4b5462;
-    --dark-text: #e7e9ed;
-    --dark-text-muted: #babbbe;
-    --error-color: #e63946;
+    --blue: #0d6efd;
+    --indigo: #6610f2;
+    --purple: #6f42c1;
+    --pink: #d63384;
+    --red: #dc3545;
+    --orange: #fd7e14;
+    --yellow: #ffc107;
+    --green: #198754;
+    --teal: #20c997;
+    --cyan: #0dcaf0;
+    --white: #fff;
+    --gray: #6c757d;
+    --gray-dark: #343a40;
+
+    --primary-color: var(--blue);
+    --dark-bg: #212529;             /* Body background */
+    --dark-bg-card: #343a40;        /* Card, Navbar, Input background */
+    --dark-border: #495057;         /* Borders for elements */
+    --dark-text: #dee2e6;           /* Main text color, high contrast */
+    --dark-text-muted: #adb5bd;    /* Subtitles, muted text */
+    --error-color: #f25c54;         /* A slightly brighter red for dark bg */
+    --success-color: #48c774;       /* A vibrant green */
+    --warning-color: #ffc107;       /* A noticeable yellow */
 }
 
 body {
@@ -20,17 +36,29 @@ body {
     color: var(--dark-text);
 }
 
-/* --- Compact Navbar --- */
+a {
+    color: var(--primary-color);
+}
+a:hover {
+    color: #4092ff;
+}
+
+/* --- Component Styling --- */
+
+/* Navbar */
 .navbar {
     padding: 0.2rem 1rem;
     background: var(--dark-bg-card);
     border-bottom: 1px solid var(--dark-border);
 }
-.step.nav-step .step-icon {
-    min-width: 90px;
-    padding: .4rem;
+.navbar .btn-link {
+    color: var(--dark-text-muted);
+}
+.navbar .btn-link:hover {
+    color: var(--dark-text);
 }
 
+/* Cards */
 .card {
     border: 1px solid var(--dark-border);
     background: var(--dark-bg-card);
@@ -38,8 +66,78 @@ body {
     margin-bottom: 1rem;
 }
 .card .card-header, .card .card-footer {
-    background: #414a58;
+    background: #2c3034;
     border-color: var(--dark-border);
     padding: .6rem;
 }
 
+/* Buttons */
+.btn.btn-primary {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--white);
+}
+.btn.btn-primary:hover {
+    background: #0b5ed7;
+    border-color: #0a58ca;
+}
+.btn.btn-primary:disabled {
+    background: var(--dark-border);
+    border-color: var(--dark-border);
+}
+
+/* Forms (Inputs, Textareas) */
+.form-input, textarea.form-input {
+    background-color: #2b3035;
+    border-color: var(--dark-border);
+    color: var(--dark-text);
+    box-shadow: none;
+}
+.form-input:focus, textarea.form-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+.input-group .input-group-addon {
+    background: #3e444a;
+    border-color: var(--dark-border);
+    color: var(--dark-text-muted);
+}
+
+/* Toasts / Alerts */
+.toast.toast-success { background: var(--success-color); color: var(--white); }
+.toast.toast-error { background: var(--error-color); color: var(--white); }
+
+/* --- Validation Page Specific Styles --- */
+#validate.html .layout-container { display: flex; }
+#validate.html .main-content { flex-grow: 1; }
+
+.entry-container {
+    margin-bottom: .4rem;
+    padding: .4rem .6rem;
+    border-left: 4px solid transparent;
+    border-radius: 4px;
+}
+.entry-valid {
+    border-left-color: var(--success-color);
+    background: #2a3a31; /* Dark green tint */
+}
+.entry-invalid {
+    border-left-color: var(--error-color);
+    background: #402a2a; /* Dark red tint */
+}
+.error-message {
+    color: var(--warning-color);
+    font-size: .75rem;
+    margin-top: .4rem;
+}
+.tab .tab-item a {
+    font-size: 1.1em;
+    color: var(--dark-text-muted);
+}
+.tab .tab-item.active a, .tab .tab-item a:hover {
+    border-bottom-color: var(--primary-color);
+    color: var(--dark-text);
+}
+.input-group-addon i.fa-solid {
+    color: var(--dark-text); /* Ensure icons in addons are visible */
+}

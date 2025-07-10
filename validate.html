@@ -6,22 +6,19 @@
     <title>Validate Data</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .layout-container { display: flex; gap: 1rem; }
-        .main-content { flex-grow: 1; }
-        .sidebar { width: 300px; flex-shrink: 0; }
-        .sidebar textarea { height: 70vh; }
-        .entry-container { margin-bottom: .4rem; padding: .4rem; border-left: 3px solid transparent; }
-        .entry-valid { border-left-color: #32b643; background: #3a4b4d; }
-        .entry-invalid { border-left-color: var(--error-color); background: #4a3a3a; }
-        .error-message { color: #ffb703; font-size: .7rem; margin-top: .2rem; }
-        .form-icon.valid { color: #32b643; }
-        .form-icon.invalid { color: var(--error-color); }
-        .tab .tab-item a { font-size: 1.1em; }
+        /* Keep specific layout styles here */
+        .main-content { width: 100%; }
+        .entry-container .input-group-addon { 
+            white-space: nowrap; /* Prevents date from wrapping */
+            min-width: 140px; /* Give it some space */
+            justify-content: center;
+        }
+        .entry-valid .input-group-addon { background-color: #2c4737; }
     </style>
 </head>
 <body class="dark">
+    <!-- Navbar remains the same -->
     <header class="navbar">
-        <!-- Navbar, with step 2 active -->
         <section class="navbar-section">
             <a href="index.html" class="navbar-brand mr-2">Symptom Diary Preprocessor</a>
             <ul class="step">
@@ -51,11 +48,21 @@
             <p>Review the parsed data below. Correct any entries marked in red. The "Proceed" button will be enabled when all errors are resolved.</p>
         
             <div class="card mt-2 p-2">
-                <div class="btn-group">
-                    <button class="btn" id="prev-error-btn"><i class="fa-solid fa-arrow-up"></i> Previous Problem</button>
-                    <button class="btn" id="next-error-btn"><i class="fa-solid fa-arrow-down"></i> Next Problem</button>
+                <div class="columns">
+                    <div class="column col-6">
+                        <div class="btn-group">
+                            <button class="btn" id="prev-error-btn"><i class="fa-solid fa-arrow-up"></i> Previous Problem</button>
+                            <button class="btn" id="next-error-btn"><i class="fa-solid fa-arrow-down"></i> Next Problem</button>
+                        </div>
+                    </div>
+                    <div class="column col-6 text-right">
+                        <!-- NEW: Load Validation Data Button -->
+                        <button class="btn btn-secondary" id="load-validation-btn"><i class="fa-solid fa-upload"></i> Load Validated File(s)</button>
+                        <input type="file" id="validation-file-input" hidden multiple accept=".txt">
+
+                        <button class="btn" id="save-all-btn"><i class="fa-solid fa-save"></i> Save All</button>
+                    </div>
                 </div>
-                <button class="btn btn-secondary float-right" id="save-all-btn"><i class="fa-solid fa-save"></i> Save All Validated Data</button>
             </div>
 
             <div class="layout-container mt-2">
@@ -67,19 +74,13 @@
                         <!-- Tab content will be generated here -->
                     </div>
                 </div>
-                <div class="sidebar">
-                    <div class="form-group">
-                        <label class="form-label">Scratchpad</label>
-                        <textarea class="form-input" id="scratchpad" placeholder="Use this area for rough work..."></textarea>
-                    </div>
-                </div>
+                <!-- REMOVED: Sidebar/Scratchpad -->
             </div>
 
             <button class="btn btn-primary btn-lg btn-block mt-2" id="proceed-btn" disabled>
                 Proceed to Step 3: Define <i class="fa-solid fa-arrow-right"></i>
             </button>
         </div>
-
     </main>
     <script defer src="static/jquery.min.js"></script>
     <script defer src="static/moment.min.js"></script> 
