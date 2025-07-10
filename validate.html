@@ -27,33 +27,19 @@
 
     <main class="container grid-lg mt-2">
         <h4><i class="fa-solid fa-check-to-slot"></i> Step 2: Validate Data</h4>
-        <p>Review each entry. Lines with errors are highlighted for correction. Fix them to proceed.</p>
+        <p>Review each entry. Errors like incorrect chronological order are highlighted below.
+             <button id="save-validation-btn" class="btn btn-sm btn-primary float-right"><i class="fa-solid fa-save"></i> Save Progress</button>
+             <button id="proceed-btn" class="btn btn-sm btn-success float-right mr-1 hidden"><i class="fa-solid fa-arrow-right"></i> Proceed</button>
+        </p>
+        
+        <div class="toast" id="error-summary">
+             </div>
 
         <div id="no-data-view" class="empty hidden">
-            <div class="empty-icon"><i class="fa-solid fa-file-excel fa-3x"></i></div>
-            <p class="empty-title h5">No data to validate</p>
-            <p class="empty-subtitle">Go back to the parse page or upload a previously saved validation file to continue.</p>
-            <div class="empty-action">
-                <label class="btn btn-primary"><i class="fa-solid fa-upload"></i> Upload Validation File
-                    <input type="file" id="upload-validation-file" hidden accept=".json">
-                </label>
-                <a href="index.html" class="btn"><i class="fa-solid fa-arrow-left"></i> Back to Parse</a>
             </div>
-        </div>
 
         <div id="data-view" class="hidden">
-            <div class="page-header d-flex">
-                <div class="mr-2">
-                    <button id="save-validation-btn" class="btn btn-primary"><i class="fa-solid fa-save"></i> Save Progress</button>
-                </div>
-                <div class="toast toast-success" id="error-summary">
-                    <i class="fa-solid fa-thumbs-up"></i> All lines are valid!
-                </div>
-                <div class="ml-2">
-                    <button id="proceed-btn" class="btn btn-success hidden"><i class="fa-solid fa-arrow-right"></i> Proceed to Definitions</button>
-                </div>
-            </div>
-            <div id="validation-output" class="card">
+            <div id="validation-output" class="card mt-2">
                 </div>
         </div>
     </main>

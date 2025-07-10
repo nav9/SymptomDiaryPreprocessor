@@ -1,123 +1,45 @@
-/* Import Spectre Framework */
+/* Import Spectre Framework & Font Awesome */
 @import url('../static/spectre.min.css');
-@import url('../static/spectre-exp.min.css');
-@import url('../static/spectre-icons.min.css');
 @import url('../static/all.min.css');
 
 /* --- Theme and Layout --- */
 :root {
-    --primary-color: #5755d9;
+    --primary-color: #049bff;
+    --dark-bg: #2c3440;
+    --dark-bg-card: #3a4351;
+    --dark-border: #4b5462;
+    --dark-text: #e7e9ed;
+    --dark-text-muted: #babbbe;
+    --error-color: #e63946;
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     font-size: 14px;
-    background: #303742;
-    color: #e7e9ed;
+    background: var(--dark-bg);
+    color: var(--dark-text);
 }
 
 /* --- Compact Navbar --- */
 .navbar {
     padding: 0.2rem 1rem;
-    background: #3a4351;
-    border-bottom: 1px solid #444;
-}
-.navbar .navbar-section a, .navbar .btn {
-    color: #dadce1;
-}
-.navbar .navbar-brand {
-    color: #e7e9ed;
-    font-weight: bold;
-}
-
-/* Step-like navigation */
-.step.nav-step {
-    min-width: 80px;
-    padding: .2rem 0;
-}
-.step.nav-step:not(:last-child)::after {
-    height: .1rem;
-    top: 50%;
-    transform: translateY(-50%);
+    background: var(--dark-bg-card);
+    border-bottom: 1px solid var(--dark-border);
 }
 .step.nav-step .step-icon {
-    height: 1.2rem;
-    width: 1.2rem;
-    line-height: 1.1rem;
-    font-size: 0.7rem;
-    background: #505d70;
-}
-.step.nav-step.active .step-icon, .step.nav-step a:hover .step-icon {
-    background: var(--primary-color);
+    min-width: 90px;
+    padding: .4rem;
 }
 
-
-/* --- General Components --- */
 .card {
-    border: 1px solid #444;
-    background: #3a4351;
+    border: 1px solid var(--dark-border);
+    background: var(--dark-bg-card);
     box-shadow: none;
     margin-bottom: 1rem;
 }
 .card .card-header, .card .card-footer {
     background: #414a58;
-    border-bottom: 1px solid #444;
+    border-color: var(--dark-border);
     padding: .6rem;
 }
-.card .card-footer {
-    border-top: 1px solid #444;
-    border-bottom: 0;
-}
 
-/* --- Configuration Section (Accordion) --- */
-.accordion input:checked ~ .accordion-body,
-.accordion[open] .accordion-body {
-    max-height: 50rem; /* Adjust as needed */
-}
-.accordion .accordion-header {
-    padding: .4rem .6rem;
-    background: #414a58;
-    color: #babbbe;
-    font-size: 0.9em;
-}
-
-/* --- Validation Page Specifics --- */
-.validation-row {
-    display: flex;
-    align-items: center;
-    padding: .3rem .5rem;
-    border-bottom: 1px solid #444;
-    font-family: 'SF Mono', 'Courier New', monospace;
-    font-size: 0.9em;
-}
-.validation-row:hover {
-    background: #414a58;
-}
-.validation-row .line-status {
-    flex: 0 0 20px;
-}
-.validation-row .line-content {
-    flex-grow: 1;
-}
-.validation-row .form-input {
-    height: 1.8rem;
-    font-size: 1em;
-    border-color: #c0392b;
-}
-.validation-row .btn-sm {
-    height: 1.8rem;
-}
-.line-status .icon-check { color: #2ecc71; }
-.line-status .icon-edit { color: #f1c40f; }
-
-.page-header {
-    padding: 1rem;
-    background: #414a58;
-    border-radius: 3px;
-    margin-bottom: 1rem;
-}
-
-/* --- General Utility --- */
-.hidden {
-    display: none !important;
-}

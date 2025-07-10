@@ -55,44 +55,10 @@
          
         <br>
 
-        <section class="accordion">
-            <input type="checkbox" id="accordion-1" name="accordion-checkbox" hidden>
-            <label class="accordion-header c-hand" for="accordion-1">
-                <i class="icon icon-arrow-right mr-1"></i>
-                Optional: Advanced Configuration
-            </label>
-            <div class="accordion-body">
-                <p class="text-small text-gray">Tweak these settings only if your data format is different from the default. The parser uses these rules to interpret your diary entries.</p>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="year-format" value="HealthYYYY.txt">
-                    <label class="form-label text-small" for="year-format">Year in Filename</label>
-                </div>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="date-format" value="DD MMM">
-                    <label class="form-label text-small" for="date-format">Date Line Format</label>
-                </div>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="time-format" value="HH:mm">
-                    <label class="form-label text-small" for="time-format">Time Format</label>
-                </div>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="observation-char" value="//">
-                    <label class="form-label text-small" for="observation-char">Observation Line Start</label>
-                </div>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="separator-chars" value=".,">
-                    <label class="form-label text-small" for="separator-chars">Data Separators</label>
-                </div>
-                <div class="form-group">
-                    <input class="form-input input-sm" type="text" id="ignore-chars" value=";">
-                    <label class="form-label text-small" for="ignore-chars">Ignore at Line End</label>
-                </div>
-            </div>
-        </section>
-
     </main>
 
     <script defer src="static/jquery.min.js"></script>
-    <script defer src="app.js"></script>
+    <script defer src="static/moment.min.js"></script> 
+    <script defer src="js/app.js"></script>
 </body>
 </html>

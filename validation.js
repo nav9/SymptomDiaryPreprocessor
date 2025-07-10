@@ -21,19 +21,23 @@ $(document).ready(function() {
         window.location.href = 'define.html';
     });
 
+    function escapeForRegexClass(str) {
+        if (!str) return '';
+        return str.replace(/([\]\\^-])/g, '\\$1');
+    }    
+
 
     // --- Core Functions ---
 
     function initialize() {
         const dataFromSession = sessionStorage.getItem('symptomDataForValidation');
         if (dataFromSession) {
-            const parsedData = JSON.parse(dataFromSession);
-            config = parsedData.config;
-            validationData = preprocessRawData(parsedData.files);
+            structuredData = JSON.parse(dataFromSession);
             $('#data-view').removeClass('hidden');
             $('#no-data-view').addClass('hidden');
             renderValidationUI();
         } else {
+            // Show upload prompt if no data
             $('#no-data-view').removeClass('hidden');
             $('#data-view').addClass('hidden');
         }
@@ -57,37 +61,42 @@ $(document).ready(function() {
     function renderValidationUI() {
         const outputContainer = $('#validation-output');
         outputContainer.empty();
-        let currentDay = null;
         let errorCount = 0;
+        let lastTimestamp = null;
 
-        validationData.forEach((item, index) => {
-            if (item.type === 'file_header') {
-                outputContainer.append(`<div class="tile tile-centered p-2" style="background:#505d70;"><div class="tile-content text-bold">${item.content}</div></div>`);
-                currentDay = null; // Reset date context for new file
-                return;
-            }
-
-            const parsed = parseLine(item.originalLine, currentDay, item.year, config);
+        structuredData.forEach((item, index) => {
+            let error = null;
             
-            if(parsed.status === 'success') {
-                if(parsed.type === 'date') currentDay = parsed.data.dateObject;
-                item.status = 'valid';
-                item.parsed = parsed;
-                outputContainer.append(createValidRow(item));
-            } else {
-                item.status = 'invalid';
+            // Validation Logic
+            if (item.timestamp) {
+                const currentTimestamp = moment(item.timestamp);
+                if (!currentTimestamp.isValid()) {
+                    error = { message: "Invalid timestamp format." };
+                } else if (lastTimestamp && currentTimestamp.isBefore(lastTimestamp)) {
+                    // NEW: Chronological Check
+                    error = { message: "Time is out of order." };
+                } else {
+                    lastTimestamp = currentTimestamp; // Update last valid timestamp
+                }
+            }
+            
+            if (error) {
                 errorCount++;
-                outputContainer.append(createInvalidRow(item, index));
+                outputContainer.append(createInvalidRow(item, index, error));
+            } else {
+                outputContainer.append(createValidRow(item, index));
             }
         });
         updateErrorSummary(errorCount);
     }
 
     function parseLine(line, currentDay, year, config) {
-        const cleanLine = line.replace(new RegExp(`[${config.ignoreChars}]+$`), '').trim();
-
+        // FIX: Create RegExp safely from the string stored in the config object
+        const ignoreCharsRegex = config.ignoreChars ? new RegExp(`[${escapeForRegexClass(config.ignoreChars)}]+$`) : null;
+        const cleanLine = ignoreCharsRegex ? line.replace(ignoreCharsRegex, '').trim() : line.trim();
+        
         // Observation
-        if (cleanLine.startsWith(config.obsChar)) {
+        if (config.obsChar && cleanLine.startsWith(config.obsChar)) {
             return { status: 'success', type: 'observation', data: { text: cleanLine.substring(config.obsChar.length).trim() } };
         }
 
@@ -105,7 +114,9 @@ $(document).ready(function() {
             const timestamp = currentDay.clone().set({ hour: timeStr.split(':')[0], minute: timeStr.split(':')[1] });
             
             if (timestamp.isValid()) {
-                 const content = dataStr.split(new RegExp(`[${config.separators}]`)).map(s => s.trim()).filter(Boolean);
+                 // FIX: Create separators regex safely
+                 const separatorsRegex = config.separators ? new RegExp(`[${escapeForRegexClass(config.separators)}]`) : new RegExp(`\\s+`);
+                 const content = dataStr.split(separatorsRegex).map(s => s.trim()).filter(Boolean);
                  return { status: 'success', type: 'entry', data: { timestamp: timestamp.toISOString(), display: timestamp.format('h:mm a'), content: content } };
             }
         }
@@ -117,13 +128,12 @@ $(document).ready(function() {
     
     function createValidRow(item) {
         let contentHtml = '';
-        if (item.parsed.type === 'date') {
-            contentHtml = `<strong class="text-primary">${item.parsed.data.text}</strong>`;
-        } else if (item.parsed.type === 'observation') {
-            contentHtml = `<em class="text-gray">// ${item.parsed.data.text}</em>`;
-        } else if (item.parsed.type === 'entry') {
-            const badges = item.parsed.data.content.map(c => `<span class="chip">${c}</span>`).join(' ');
-            contentHtml = `<strong>${item.parsed.data.display}</strong> &rarr; ${badges}`;
+        if (item.timestamp) {
+            const displayTime = moment(item.timestamp).format('MMM D, HH:mm');
+            const badges = item.data.map(d => `<span class="chip">${d}</span>`).join(' ');
+            contentHtml = `<strong>${displayTime}</strong> &rarr; ${badges}`;
+        } else if (item.observations) {
+            contentHtml = `<em class="text-gray">// ${item.observations.join('; ')}</em>`;
         }
         return `<div class="validation-row">
                     <div class="line-status"><i class="icon icon-check"></i></div>
@@ -131,23 +141,29 @@ $(document).ready(function() {
                 </div>`;
     }
 
-    function createInvalidRow(item, index) {
+    function createInvalidRow(item, index, error) {
+        // For now, we show the error and the original line that created this entry.
+        // A more advanced version could allow editing the timestamp/data directly.
+        const displayTime = item.timestamp ? moment(item.timestamp).format('MMM D, HH:mm') : 'N/A';
+        const badges = item.data ? item.data.map(d => `<span class="chip">${d}</span>`).join(' ') : (item.observations || []).join('; ');
+        
         return `<div class="validation-row has-error" data-index="${index}">
-                    <div class="line-status"><i class="icon icon-edit"></i></div>
-                    <div class="line-content input-group">
-                        <input class="form-input" type="text" value="${item.originalLine}">
-                        <button class="btn btn-primary input-group-btn validate-line-btn">Validate</button>
+                    <div class="line-status"><i class="icon icon-close"></i></div>
+                    <div class="line-content">
+                         <strong>${displayTime}</strong> &rarr; ${badges}
                     </div>
+                    <div class="line-error">${error.message}</div>
                 </div>`;
     }
     
     function updateErrorSummary(errorCount) {
-        const summary = $('#error-summary');
+        // (Same as before)
+         const summary = $('#error-summary');
         if (errorCount === 0) {
-            summary.removeClass('toast-error').addClass('toast-success').html('<i class="fa-solid fa-thumbs-up"></i> All lines are valid!');
+            summary.removeClass('toast-error').addClass('toast-success').html('<i class="fa-solid fa-thumbs-up"></i> All data is valid!');
             $('#proceed-btn').removeClass('hidden');
         } else {
-            summary.removeClass('toast-success').addClass('toast-error').html(`<i class="fa-solid fa-triangle-exclamation"></i> ${errorCount} line(s) need correction.`);
+            summary.removeClass('toast-success').addClass('toast-error').html(`<i class="fa-solid fa-triangle-exclamation"></i> ${errorCount} entries have errors.`);
             $('#proceed-btn').addClass('hidden');
         }
     }
