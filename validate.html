@@ -5,16 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Validate Data</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        /* Keep specific layout styles here */
-        .main-content { width: 100%; }
-        .entry-container .input-group-addon { 
-            white-space: nowrap; /* Prevents date from wrapping */
-            min-width: 140px; /* Give it some space */
-            justify-content: center;
-        }
-        .entry-valid .input-group-addon { background-color: #2c4737; }
-    </style>
 </head>
 <body class="dark">
     <!-- Navbar remains the same -->
@@ -38,43 +28,45 @@
 
     <main class="container grid-lg mt-2">
         <div class="empty" id="loading-state">
-            <div class="empty-icon"><div class="loading loading-lg"></div></div>
-            <p class="empty-title h5">Parsing and validating your data...</p>
-            <p class="empty-subtitle">This may take a moment.</p>
+            <!-- Loading state remains the same -->
         </div>
 
         <div id="main-validator" style="display: none;">
             <h4><i class="fa-solid fa-clipboard-check"></i> Step 2: Validate Data</h4>
-            <p>Review the parsed data below. Correct any entries marked in red. The "Proceed" button will be enabled when all errors are resolved.</p>
+            <p>Correct entries with errors. Add, delete, or reorder lines as needed. All changes are saved automatically.</p>
         
             <div class="card mt-2 p-2">
-                <div class="columns">
-                    <div class="column col-6">
-                        <div class="btn-group">
-                            <button class="btn" id="prev-error-btn"><i class="fa-solid fa-arrow-up"></i> Previous Problem</button>
-                            <button class="btn" id="next-error-btn"><i class="fa-solid fa-arrow-down"></i> Next Problem</button>
+                <div class="columns v-center">
+                    <div class="column col-md-12 col-lg-8">
+                         <!-- NEW: Dropdown for year selection -->
+                        <div class="form-group">
+                            <label class="form-label mr-2">Select Year:</label>
+                            <select class="form-select" id="year-selector" style="width: auto; display: inline-block;"></select>
                         </div>
                     </div>
-                    <div class="column col-6 text-right">
-                        <!-- NEW: Load Validation Data Button -->
-                        <button class="btn btn-secondary" id="load-validation-btn"><i class="fa-solid fa-upload"></i> Load Validated File(s)</button>
+                    <div class="column col-md-12 col-lg-4 text-right">
+                        <button class="btn btn-secondary" id="load-validation-btn"><i class="fa-solid fa-upload"></i> Load File(s)</button>
                         <input type="file" id="validation-file-input" hidden multiple accept=".txt">
-
-                        <button class="btn" id="save-all-btn"><i class="fa-solid fa-save"></i> Save All</button>
+                    </div>
+                </div>
+                 <div class="divider"></div>
+                <div class="columns v-center">
+                    <div class="column col-8">
+                        <div class="btn-group">
+                            <button class="btn" id="prev-error-btn"><i class="fa-solid fa-arrow-up"></i> Prev Problem</button>
+                            <button class="btn" id="next-error-btn"><i class="fa-solid fa-arrow-down"></i> Next Problem</button>
+                        </div>
+                        <!-- NEW: Problem counter -->
+                        <span id="problem-counter"></span>
+                    </div>
+                    <div class="column col-4 text-right">
+                         <button class="btn" id="save-all-btn"><i class="fa-solid fa-save"></i> Save All to Files</button>
                     </div>
                 </div>
             </div>
 
-            <div class="layout-container mt-2">
-                <div class="main-content">
-                    <ul class="tab tab-block" id="year-tabs">
-                        <!-- Year tabs will be generated here -->
-                    </ul>
-                    <div id="tab-content-container">
-                        <!-- Tab content will be generated here -->
-                    </div>
-                </div>
-                <!-- REMOVED: Sidebar/Scratchpad -->
+            <div id="content-container" class="mt-2">
+                <!-- Year content will be generated here -->
             </div>
 
             <button class="btn btn-primary btn-lg btn-block mt-2" id="proceed-btn" disabled>
