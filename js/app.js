@@ -5,6 +5,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const dummyDataBtn = document.getElementById('dummy-data-btn');
     const processBtn = document.getElementById('process-btn');
     const filePreviewContainer = document.getElementById('file-preview-container');
+    let dataByYear = {};
+        // --- NEW: Overlay References and Helpers ---
+        const overlay = document.getElementById('processing-overlay');
+        const overlayMessage = document.getElementById('processing-message');
+
+        function showProcessingOverlay(message) {
+            overlayMessage.textContent = message;
+            overlay.classList.add('active');
+        }
+    
+        function hideProcessingOverlay() {
+            overlay.classList.remove('active');
+        }
 
     // --- State Management ---
     let uploadedFilesData = [];
@@ -51,8 +64,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const handleFiles = (files) => {
-        Array.from(files).forEach(file => {
-            if (file.type.startsWith('text/') && !uploadedFilesData.some(f => f.filename === file.name)) {
+        const filesToProcess = Array.from(files).filter(file => file.type.startsWith('text/'));
+        if (filesToProcess.length === 0) return;
+
+        // --- Use the overlay ---
+        showProcessingOverlay(`Reading ${filesToProcess.length} file(s)...`);
+        
+        let filesHandled = 0;
+        filesToProcess.forEach(file => {
+            if (!uploadedFilesData.some(f => f.filename === file.name)) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     uploadedFilesData.push({
@@ -60,9 +80,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         filename: file.name,
                         content: e.target.result
                     });
-                    renderFilePreviews(); // Re-render after each file is loaded
+                    filesHandled++;
+                    if (filesHandled === filesToProcess.length) {
+                        renderFilePreviews();
+                        hideProcessingOverlay(); // Hide when all files are done
+                    }
+                };
+                reader.onerror = () => {
+                    console.error(`Error reading file: ${file.name}`);
+                    filesHandled++;
+                    if (filesHandled === filesToProcess.length) {
+                        hideProcessingOverlay(); // Still hide even if there was an error
+                    }
                 };
                 reader.readAsText(file);
+            } else {
+                // If file is a duplicate, still count it as "handled"
+                filesHandled++;
+                if (filesHandled === filesToProcess.length) {
+                    hideProcessingOverlay();
+                }
             }
         });
     };

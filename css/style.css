@@ -96,3 +96,43 @@ a:hover { color: #4092ff; }
 }
 #problem-counter.has-errors { color: var(--warning-color); border: 1px solid var(--warning-color); }
 #problem-counter.no-errors { color: var(--success-color); border: 1px solid var(--success-color); }
+
+
+/* --- Processing Overlay --- */
+.processing-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(20, 20, 20, 0.7); /* Dark, semi-transparent background */
+    display: none; /* Hidden by default */
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    color: var(--dark-text);
+    backdrop-filter: blur(4px); /* Modern blur effect for supported browsers */
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.processing-overlay.active {
+    display: flex; /* Show it */
+}
+
+.processing-box {
+    background: var(--dark-bg-card);
+    padding: 2rem 3rem;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid var(--dark-border);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.processing-box .loading {
+    margin: 0 auto 1rem auto; /* Center the spinner */
+}
+
+#processing-message {
+    font-size: 1.1em;
+    font-weight: 500;
+}

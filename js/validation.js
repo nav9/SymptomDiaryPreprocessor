@@ -22,6 +22,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadValidationBtn = document.getElementById('load-validation-btn');
     const validationFileInput = document.getElementById('validation-file-input');
 
+    // --- NEW: Overlay References and Helpers ---
+    const overlay = document.getElementById('processing-overlay');
+    const overlayMessage = document.getElementById('processing-message');
+
+    function showProcessingOverlay(message) {
+        overlayMessage.textContent = message;
+        overlay.classList.add('active');
+    }
+
+    function hideProcessingOverlay() {
+        overlay.classList.remove('active');
+    }
+
     // --- PARSING ENGINE ---
 
     /**
@@ -307,7 +320,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return acc;
         }, {});
         
-        loadDataIntoApp(rawDataByYear);
+        // Use the overlay for the initial, potentially large, parsing job
+        showProcessingOverlay('Parsing initial data...');
+        // Use timeout to ensure overlay renders before synchronous parsing blocks the main thread
+        setTimeout(() => {
+            try {
+                loadDataIntoApp(rawDataByYear);
+            } finally {
+                hideProcessingOverlay();
+            }
+        }, 50);
     }
     
     function loadDataIntoApp(rawDataByYear) {
@@ -328,8 +350,60 @@ document.addEventListener('DOMContentLoaded', () => {
         updateGlobalState();
     }
     
-    async function handleValidationFileUpload(event) { /* Unchanged from previous version */ }
-    function saveAllData() { /* Unchanged from previous version */ }
+    async function handleValidationFileUpload(event) {
+        const files = event.target.files;
+        if (!files.length) return;
+
+        showProcessingOverlay(`Loading ${files.length} validation file(s)...`);
+
+        try {
+            const filesByYear = {};
+            for (const file of files) {
+                const match = file.name.match(/Validation_(\d{4})\.txt$/);
+                if (match) {
+                    const year = match[1];
+                    if (!filesByYear[year] || file.lastModified > filesByYear[year].lastModified) {
+                        filesByYear[year] = file;
+                    }
+                }
+            }
+
+            const readPromises = Object.entries(filesByYear).map(([year, file]) => 
+                file.text().then(content => ({ year, content }))
+            );
+            
+            const newFilesData = await Promise.all(readPromises);
+            
+            const rawDataByYear = {};
+            newFilesData.forEach(({ year, content }) => {
+                rawDataByYear[year] = content;
+            });
+
+            // Now parse and load the new data
+            loadDataIntoApp(rawDataByYear);
+
+        } catch (error) {
+            console.error('Error reading validation files:', error);
+            alert('An error occurred while reading the files. Please check the console.');
+        } finally {
+            hideProcessingOverlay();
+            event.target.value = ''; // Reset file input
+        }
+    }
+
+    function saveAllData() {
+        showProcessingOverlay('Generating and saving files...');
+        // Use a timeout to allow the overlay to show before the synchronous loop starts
+        setTimeout(() => {
+            try {
+                // ... (The existing synchronous logic for saving files)
+                const sortedYears=Object.keys(dataByYear).sort((a,b)=>b-a);for(const year of sortedYears){let fileContent=`// Symptom Diary - Validated Data for ${year}\n// Saved on ${moment().format("YYYY-MM-DD HH:mm")}\n\n`;const yearContentDiv=document.getElementById(`content-container`);if(!yearContentDiv)continue;let lastDate=null;dataByYear[year].forEach(item=>{if(item.type==='entry'){const entryMoment=item.timestamp;if(entryMoment.isValid()){if(!lastDate||!entryMoment.isSame(lastDate,"day")){fileContent+=`\n${entryMoment.format("D MMM")}\n`}
+lastDate=entryMoment;fileContent+=`${entryMoment.format("H:mm")} ${item.tags.join(', ')}\n`}}else if(item.type==='observation'){fileContent+=`//${item.content}\n`}});const blob=new Blob([fileContent],{type:"text/plain;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url,a.download=`SymptomDiary_Validation_${year}.txt`,a.click(),URL.revokeObjectURL(url)}alert("Validated data has been saved for all available years.");
+            } finally {
+                hideProcessingOverlay();
+            }
+        }, 50);
+    }    
 
     // Bind event listeners
     yearSelector.addEventListener('change', e => renderYearContent(e.target.value));
