@@ -3,20 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Validate</title>
+    <title>Validate Data</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .layout-container { display: flex; gap: 1rem; }
+        .main-content { flex-grow: 1; }
+        .sidebar { width: 300px; flex-shrink: 0; }
+        .sidebar textarea { height: 70vh; }
+        .entry-container { margin-bottom: .4rem; padding: .4rem; border-left: 3px solid transparent; }
+        .entry-valid { border-left-color: #32b643; background: #3a4b4d; }
+        .entry-invalid { border-left-color: var(--error-color); background: #4a3a3a; }
+        .error-message { color: #ffb703; font-size: .7rem; margin-top: .2rem; }
+        .form-icon.valid { color: #32b643; }
+        .form-icon.invalid { color: var(--error-color); }
+        .tab .tab-item a { font-size: 1.1em; }
+    </style>
 </head>
 <body class="dark">
     <header class="navbar">
+        <!-- Navbar, with step 2 active -->
         <section class="navbar-section">
             <a href="index.html" class="navbar-brand mr-2">Symptom Diary Preprocessor</a>
             <ul class="step">
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">1. Upload</div></a></li>
-                <li class="step-item active"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">2. Validate</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">3. Define</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">4. Expand</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">5. Visualize</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip=""><div class="step-icon">6. Encrypt</div></a></li>
+                <li class="step-item"><a href="index.html" class="tooltip" data-tooltip="Upload Files"><div class="step-icon">1. Upload</div></a></li>
+                <li class="step-item active"><a href="#" class="tooltip" data-tooltip="Correct any errors"><div class="step-icon">2. Validate</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Define categories"><div class="step-icon">3. Define</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Add computed data"><div class="step-icon">4. Expand</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip="View charts"><div class="step-icon">5. Visualize</div></a></li>
+                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Save securely"><div class="step-icon">6. Encrypt</div></a></li>
             </ul>
         </section>
         <section class="navbar-section">
@@ -26,26 +40,49 @@
     </header>
 
     <main class="container grid-lg mt-2">
-        <h4><i class="fa-solid fa-check-to-slot"></i> Step 2: Validate Data</h4>
-        <p>Review each entry. Errors like incorrect chronological order are highlighted below.
-             <button id="save-validation-btn" class="btn btn-sm btn-primary float-right"><i class="fa-solid fa-save"></i> Save Progress</button>
-             <button id="proceed-btn" class="btn btn-sm btn-success float-right mr-1 hidden"><i class="fa-solid fa-arrow-right"></i> Proceed</button>
-        </p>
-        
-        <div class="toast" id="error-summary">
-             </div>
+        <div class="empty" id="loading-state">
+            <div class="empty-icon"><div class="loading loading-lg"></div></div>
+            <p class="empty-title h5">Parsing and validating your data...</p>
+            <p class="empty-subtitle">This may take a moment.</p>
+        </div>
 
-        <div id="no-data-view" class="empty hidden">
+        <div id="main-validator" style="display: none;">
+            <h4><i class="fa-solid fa-clipboard-check"></i> Step 2: Validate Data</h4>
+            <p>Review the parsed data below. Correct any entries marked in red. The "Proceed" button will be enabled when all errors are resolved.</p>
+        
+            <div class="card mt-2 p-2">
+                <div class="btn-group">
+                    <button class="btn" id="prev-error-btn"><i class="fa-solid fa-arrow-up"></i> Previous Problem</button>
+                    <button class="btn" id="next-error-btn"><i class="fa-solid fa-arrow-down"></i> Next Problem</button>
+                </div>
+                <button class="btn btn-secondary float-right" id="save-all-btn"><i class="fa-solid fa-save"></i> Save All Validated Data</button>
             </div>
 
-        <div id="data-view" class="hidden">
-            <div id="validation-output" class="card mt-2">
+            <div class="layout-container mt-2">
+                <div class="main-content">
+                    <ul class="tab tab-block" id="year-tabs">
+                        <!-- Year tabs will be generated here -->
+                    </ul>
+                    <div id="tab-content-container">
+                        <!-- Tab content will be generated here -->
+                    </div>
                 </div>
-        </div>
-    </main>
+                <div class="sidebar">
+                    <div class="form-group">
+                        <label class="form-label">Scratchpad</label>
+                        <textarea class="form-input" id="scratchpad" placeholder="Use this area for rough work..."></textarea>
+                    </div>
+                </div>
+            </div>
 
+            <button class="btn btn-primary btn-lg btn-block mt-2" id="proceed-btn" disabled>
+                Proceed to Step 3: Define <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+
+    </main>
     <script defer src="static/jquery.min.js"></script>
-    <script defer src="static/moment.min.js"></script>
-    <script defer src="validation.js"></script>
+    <script defer src="static/moment.min.js"></script> 
+    <script defer src="js/validation.js"></script>
 </body>
 </html>
