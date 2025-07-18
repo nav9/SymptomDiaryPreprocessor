@@ -105,7 +105,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const loadDummyData = () => {
-        const dummyContent = `2 jun; 4:15 woke. mild rt; 6:35 brushed;\n1 jun; 2:15 u; // a comment`;
+        const dummyContent = `2 jun;
+        4:15 woke. mild rt; 
+        6:35 brushed; 
+        6:59 rice. chickpeas, jackfruit seed with mango curry. mild rt; 
+        8:20 nap; 8:45 woke. rt;
+         
+        1 jun;
+        2:15 u;
+        3:00 sleep;
+        6:38 woke. u. eyes very droopy and heavy with sleep;
+        //eyes getting easily into burning state after just 20 minutes of using PC;
+        11:51 woke from shallow drowsy sleep. liver area was a bit numb;
+        20:50 rice, kovakka, chicken. refill;`;
         if (!uploadedFilesData.some(f => f.filename === 'HealthDummy2024.txt')) {
              uploadedFilesData.push({
                 id: `file-${Date.now()}-${Math.random()}`,
