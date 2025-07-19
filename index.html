@@ -1,74 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload</title>
+    <title>Symptom Diary Visualizer</title>
+    <!-- Local Libraries -->
+    <link rel="stylesheet" href="lib/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="lib/fontawesome/all.min.css">
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="dark">
-    <header class="navbar">
-        <!-- Navbar content remains the same -->
-        <section class="navbar-section">
-            <a href="index.html" class="navbar-brand mr-2">Symptom Diary Preprocessor</a>
-            <ul class="step">
-                <li class="step-item active"><a href="#" class="tooltip" data-tooltip="Upload Files"><div class="step-icon">1. Upload</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Correct any errors"><div class="step-icon">2. Validate</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Define categories"><div class="step-icon">3. Define</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Add computed data"><div class="step-icon">4. Expand</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip="View charts"><div class="step-icon">5. Visualize</div></a></li>
-                <li class="step-item"><a href="#" class="tooltip" data-tooltip="Save securely"><div class="step-icon">6. Encrypt</div></a></li>
-            </ul>
-        </section>
-        <section class="navbar-section">
-            <a href="faq.html" class="btn btn-link">FAQ</a>
-            <a href="contact.html" class="btn btn-link">Contact</a>
-        </section>
-    </header>
+<body>
 
-    <main class="container grid-lg mt-2">
-        <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Step 1: Parse Raw Data</h4>
-        <p>Start by providing your symptom diary text file(s). You can make quick edits here before processing.</p>        
-
-        <div class="card mt-2">
-            <div class="card-header">
-                <div class="card-title h6">File Input</div>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="index.html">
+                <i class="fas fa-chart-line me-2"></i>Symptom Diary Visualizer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="index.html">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Application</a> <!-- This will link to the main app page -->
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="faq.html">FAQ</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="contact.html">Contact</a>
+                    </li>
+                </ul>
             </div>
-            <div class="card-body">
-                <div id="drop-zone" class="tile tile-centered" style="border: 2px dashed #555; padding: 2rem; cursor: pointer;">
-                    <div class="tile-content">
-                        <p class="tile-title text-bold">Drag & drop files here</p>
-                        <p class="tile-subtitle">or click to select files to upload/re-upload.</p>
-                    </div>
-                    <div class="tile-action">
-                        <i class="fa-solid fa-file-upload fa-2x"></i>
+        </div>
+    </nav>
+
+    <main class="container mt-5 pt-4">
+        <div class="p-5 mb-4 bg-body-tertiary rounded-3 text-center">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">Visualize Your Health Journey</h1>
+                <p class="fs-5">An offline-first, private application to help you find patterns in your symptom diary data. Upload your journal, clean the data, categorize entries, and discover correlations between your activities, diet, and well-being.</p>
+                <button class="btn btn-primary btn-lg mt-3" type="button">
+                    <i class="fas fa-rocket me-2"></i>Get Started
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-shield-alt fa-3x mb-3 text-primary"></i>
+                        <h5 class="card-title">100% Private & Offline</h5>
+                        <p class="card-text">All your data is processed directly in your browser. Nothing is ever uploaded to a server, ensuring your health information remains completely private.</p>
                     </div>
                 </div>
-                <input type="file" id="file-input" multiple hidden>
             </div>
-            <div class="card-footer">
-                <button class="btn btn-sm" id="dummy-data-btn"><i class="fa-solid fa-flask"></i> Use Dummy Data</button>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-magic fa-3x mb-3 text-primary"></i>
+                        <h5 class="card-title">Intelligent Grouping</h5>
+                        <p class="card-text">Uses string similarity algorithms to find and group related entries, making it easy to tag and categorize your symptoms, foods, and activities consistently.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-search-plus fa-3x mb-3 text-primary"></i>
+                        <h5 class="card-title">Powerful Analysis</h5>
+                        <p class="card-text">Filter, search, and visualize your data chronologically. Assign colors to categories to spot trends and correlations over time with interactive charts and tables.</p>
+                    </div>
+                </div>
             </div>
         </div>
-        <button class="btn btn-primary btn-lg btn-block mt-2" id="process-btn" disabled><i class="fa-solid fa-play"></i> Start Processing</button>
-         
-        <br>
-        <!-- NEW: Container for file previews -->
-        <div id="file-preview-container"></div>
-        
-
-
     </main>
 
-    <div class="processing-overlay" id="processing-overlay">
-        <div class="processing-box">
-            <div class="loading loading-lg"></div>
-            <p id="processing-message">Processing...</p>
+    <footer class="footer mt-auto py-3 bg-body-tertiary text-center">
+        <div class="container">
+            <span class="text-body-secondary">© 2025 Symptom Diary Visualizer</span>
         </div>
-    </div>
+    </footer>
 
-    <script defer src="static/jquery.min.js"></script>
-    <script defer src="static/moment.min.js"></script> 
-    <script defer src="js/app.js"></script>
+    <!-- Local Libraries -->
+    <script src="lib/jquery/jquery.min.js"></script>
+    <script src="lib/bootstrap/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="js/main.js"></script>
 </body>
 </html>
