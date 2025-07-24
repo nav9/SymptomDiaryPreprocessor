@@ -51,7 +51,8 @@ download_file "$BS_JS_URL" "lib/bootstrap/bootstrap.bundle.min.js"
 
 # 2. jQuery
 echo -e "\n--- Handling jQuery ---"
-JQUERY_URL="https://code.jquery.com/$JQUERY_VERSION/jquery.min.js"
+#https://code.jquery.com/jquery-3.7.1.min.js
+JQUERY_URL="https://code.jquery.com/jquery-$JQUERY_VERSION.min.js"
 download_file "$JQUERY_URL" "lib/jquery/jquery.min.js"
 
 # 3. Font Awesome (CSS and Webfonts)
@@ -95,9 +96,12 @@ echo -e "\n--- Creating placeholder files ---"
 touch css/style.css
 touch js/main.js
 touch js/logger.js
+touch js/app.js
+touch js/dummy-data.js
 touch index.html
 touch faq.html
 touch contact.html
+touch app.html
 echo "Placeholder files created."
 
 
