@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- Navbar remains the same -->
     <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html"><i class="fas fa-chart-line me-2"></i>SDV</a>
@@ -27,43 +28,24 @@
     </nav>
 
     <main class="container mt-5 pt-4">
-        <!-- Stepper Navigation -->
+        <!-- Stepper Navigation remains the same -->
         <div class="stepper-wrapper">
-            <div class="stepper-item active" data-step="1">
-                <div class="step-counter">1</div>
-                <div class="step-name">Input Data</div>
-            </div>
-            <div class="stepper-item" data-step="2">
-                <div class="step-counter">2</div>
-                <div class="step-name">Clean & Validate</div>
-            </div>
-            <div class="stepper-item" data-step="3">
-                <div class="step-counter">3</div>
-                <div class="step-name">Group Phrases</div>
-            </div>
-            <div class="stepper-item" data-step="4">
-                <div class="step-counter">4</div>
-                <div class="step-name">Categorize Data</div>
-            </div>
-            <div class="stepper-item" data-step="5">
-                <div class="step-counter">5</div>
-                <div class="step-name">Add Details</div>
-            </div>
-             <div class="stepper-item" data-step="6">
-                <div class="step-counter">6</div>
-                <div class="step-name">Visualize</div>
-            </div>
+            <div class="stepper-item active" data-step="1"><div class="step-counter">1</div><div class="step-name">Input Data</div></div>
+            <div class="stepper-item" data-step="2"><div class="step-counter">2</div><div class="step-name">Clean & Validate</div></div>
+            <div class="stepper-item" data-step="3"><div class="step-counter">3</div><div class="step-name">Group Phrases</div></div>
+            <div class="stepper-item" data-step="4"><div class="step-counter">4</div><div class="step-name">Categorize Data</div></div>
+            <div class="stepper-item" data-step="5"><div class="step-counter">5</div><div class="step-name">Add Details</div></div>
+            <div class="stepper-item" data-step="6"><div class="step-counter">6</div><div class="step-name">Visualize</div></div>
         </div>
 
-        <!-- Main Content Area for Steps -->
         <div class="card">
             <div class="card-body">
-                <!-- Step 1: Data Input -->
+                <!-- === MODIFIED STEP 1 LAYOUT === -->
                 <div id="step-1" class="app-step">
-                    <h5 class="card-title">Step 1: Upload Symptom Diary Files</h5>
-                    <p class="card-text text-body-secondary">Upload one or more `.txt` files (e.g., `Health2024.txt`) or use the sample data to begin.</p>
-                    
-                    <div class="row g-3">
+                    <h5 class="card-title">Step 1: Upload & Review Symptom Diary Files</h5>
+                    <p class="card-text text-body-secondary">Upload `.txt` files or use the sample data. You can review and edit the content below before proceeding.</p>
+
+                    <div class="row g-3 mb-3">
                         <!-- Option 1: Upload Files -->
                         <div class="col-md-6">
                             <h6><i class="fas fa-upload me-2"></i>Option 1: Upload Your Data</h6>
@@ -71,29 +53,32 @@
                                 <label for="fileUpload" class="form-label">Select Files:</label>
                                 <input class="form-control" type="file" id="fileUpload" accept=".txt" multiple>
                             </div>
-                            <div id="file-list-container" class="mb-3" style="max-height: 150px; overflow-y: auto;">
-                                <ul id="file-list" class="list-group"></ul>
-                            </div>
                         </div>
 
                         <!-- Option 2: Dummy Data -->
                         <div class="col-md-6">
                              <h6><i class="fas fa-database me-2"></i>Option 2: Use Sample Data</h6>
-                             <p class="text-body-secondary small">Load a pre-defined data set to explore the app's features immediately.</p>
+                             <p class="text-body-secondary small">Load a pre-defined data set to explore the app's features.</p>
                              <button id="loadDummyDataBtn" class="btn btn-secondary"><i class="fas fa-vial me-2"></i>Load Sample Data</button>
                         </div>
                     </div>
-                    
-                    <hr>
-                    <div class="d-flex justify-content-end">
-                        <button id="step1-nextBtn" class="btn btn-primary" disabled>
-                            Clean & Validate Data <i class="fas fa-arrow-right ms-2"></i>
-                        </button>
+
+                    <!-- This section is hidden until data is loaded -->
+                    <div id="data-processing-section" style="display: none;">
+                        <hr>
+                        <div class="d-flex justify-content-end align-items-center mb-3">
+                             <h6 class="me-auto mb-0"><i class="fas fa-file-signature me-2"></i>Loaded File Content</h6>
+                            <button id="step1-nextBtn" class="btn btn-primary">
+                                Clean & Validate Data <i class="fas fa-arrow-right ms-2"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Area to display file contents in textareas -->
+                        <div id="file-content-area">
+                            <!-- Textareas will be dynamically inserted here by JavaScript -->
+                        </div>
                     </div>
                 </div>
-
-                <!-- Placeholders for other steps will go here -->
-                <!-- <div id="step-2" class="app-step" style="display:none;"> ... </div> -->
             </div>
         </div>
     </main>
