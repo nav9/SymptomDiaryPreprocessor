@@ -132,3 +132,71 @@ main {
   src: url("../lib/fontawesome/webfonts/fa-brands-400.woff2") format("woff2"),
        url("../lib/fontawesome/webfonts/fa-brands-400.ttf") format("truetype");
 }
+
+/* --- Sticky Header --- */
+#step2-sticky-header {
+    top: 56px; /* Adjust based on your navbar height */
+    z-index: 100;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* --- Data Row Styling --- */
+.list-group-item.data-row {
+    padding: 0.4rem 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.data-row .form-check-input {
+    margin-top: 0;
+}
+
+.data-row .drag-handle {
+    cursor: grab;
+}
+
+.data-row .row-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.data-row .timestamp {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #a0a0a0;
+}
+
+.data-row .phrases, .data-row .note-content {
+    font-size: 0.9rem;
+}
+
+/* --- Error and Edit States --- */
+.list-group-item.row-error {
+    background-color: rgba(220, 53, 69, 0.15);
+    border-left: 4px solid var(--bs-danger);
+}
+
+.error-message {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--bs-danger);
+    font-weight: bold;
+}
+
+.editable-textarea {
+    width: 100%;
+    background-color: #343a40;
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-primary);
+    font-family: monospace;
+    font-size: 0.85rem;
+    padding: 5px;
+}
+
+/* --- Modal --- */
+#loading-modal {
+    z-index: 1060; /* Higher than sticky header */
+    background-color: rgba(0, 0, 0, 0.6);
+}

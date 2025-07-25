@@ -94,10 +94,24 @@ fi
 # --- Create Placeholder Files ---
 echo -e "\n--- Creating placeholder files ---"
 touch css/style.css
-touch js/main.js
+
+# Main JS files
+mkdir -p js/controllers
+mkdir -p js/services
+mkdir -p js/ui
+mkdir -p js/utils
+
 touch js/logger.js
-touch js/app.js
+touch js/state.js
+touch js/controllers/appController.js # Main orchestrator
+touch js/controllers/step1Controller.js # Logic for Step 1
+touch js/controllers/step2Controller.js # Logic for Step 2
+touch js/services/parserService.js
+touch js/services/validatorService.js
+touch js/ui/uiService.js # For modals, notifications, etc.
+touch js/utils/date-parser.js # For robust date parsing
 touch js/dummy-data.js
+
 touch index.html
 touch faq.html
 touch contact.html

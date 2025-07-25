@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <!-- Navbar remains the same -->
     <nav class="navbar navbar-expand-lg bg-body-tertiary fixed-top">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html"><i class="fas fa-chart-line me-2"></i>SDV</a>
@@ -28,7 +27,7 @@
     </nav>
 
     <main class="container mt-5 pt-4">
-        <!-- Stepper Navigation remains the same -->
+        <!-- Stepper Navigation -->
         <div class="stepper-wrapper">
             <div class="stepper-item active" data-step="1"><div class="step-counter">1</div><div class="step-name">Input Data</div></div>
             <div class="stepper-item" data-step="2"><div class="step-counter">2</div><div class="step-name">Clean & Validate</div></div>
@@ -38,55 +37,97 @@
             <div class="stepper-item" data-step="6"><div class="step-counter">6</div><div class="step-name">Visualize</div></div>
         </div>
 
-        <div class="card">
-            <div class="card-body">
-                <!-- === MODIFIED STEP 1 LAYOUT === -->
-                <div id="step-1" class="app-step">
-                    <h5 class="card-title">Step 1: Upload & Review Symptom Diary Files</h5>
-                    <p class="card-text text-body-secondary">Upload `.txt` files or use the sample data. You can review and edit the content below before proceeding.</p>
+        <!-- Step Content Area -->
+        <div id="app-content">
+            <!-- STEP 1: UPLOAD -->
+            <div id="step-1-content" class="app-step">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Step 1: Upload & Review Symptom Diary Files</h5>
+                        <p class="card-text text-body-secondary">Upload `.txt` files or use the sample data. You can review and edit the content below before proceeding.</p>
 
-                    <div class="row g-3 mb-3">
-                        <!-- Option 1: Upload Files -->
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-upload me-2"></i>Option 1: Upload Your Data</h6>
-                            <div class="mb-3">
-                                <label for="fileUpload" class="form-label">Select Files:</label>
-                                <input class="form-control" type="file" id="fileUpload" accept=".txt" multiple>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-upload me-2"></i>Option 1: Upload Your Data</h6>
+                                <div class="mb-3">
+                                    <label for="fileUpload" class="form-label">Select Files:</label>
+                                    <input class="form-control" type="file" id="fileUpload" accept=".txt" multiple>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-database me-2"></i>Option 2: Use Sample Data</h6>
+                                <p class="text-body-secondary small">Load a pre-defined data set to explore the app's features.</p>
+                                <button id="loadDummyDataBtn" class="btn btn-secondary"><i class="fas fa-vial me-2"></i>Load Sample Data</button>
                             </div>
                         </div>
 
-                        <!-- Option 2: Dummy Data -->
-                        <div class="col-md-6">
-                             <h6><i class="fas fa-database me-2"></i>Option 2: Use Sample Data</h6>
-                             <p class="text-body-secondary small">Load a pre-defined data set to explore the app's features.</p>
-                             <button id="loadDummyDataBtn" class="btn btn-secondary"><i class="fas fa-vial me-2"></i>Load Sample Data</button>
+                        <div id="data-processing-section" style="display: none;">
+                            <hr>
+                            <div class="d-flex justify-content-end align-items-center mb-3">
+                                <h6 class="me-auto mb-0"><i class="fas fa-file-signature me-2"></i>Loaded File Content</h6>
+                                <button id="step1-nextBtn" class="btn btn-primary">
+                                    Clean & Validate Data <i class="fas fa-arrow-right ms-2"></i>
+                                </button>
+                            </div>
+                            <div id="file-content-area">
+                                <!-- Textareas will be dynamically inserted here -->
+                            </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- This section is hidden until data is loaded -->
-                    <div id="data-processing-section" style="display: none;">
-                        <hr>
-                        <div class="d-flex justify-content-end align-items-center mb-3">
-                             <h6 class="me-auto mb-0"><i class="fas fa-file-signature me-2"></i>Loaded File Content</h6>
-                            <button id="step1-nextBtn" class="btn btn-primary">
-                                Clean & Validate Data <i class="fas fa-arrow-right ms-2"></i>
-                            </button>
+            <!-- STEP 2: CLEAN & VALIDATE -->
+            <div id="step-2-content" class="app-step" style="display: none;">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Step 2: Clean & Validate Data</h5>
+                        <p class="card-text text-body-secondary">Review the parsed data below. Correct any lines highlighted in red. The data must be chronologically sorted and correctly formatted before proceeding.</p>
+
+                        <!-- File upload/save for this specific step -->
+                        <div class="d-flex gap-2 border-bottom pb-3 mb-3">
+                             <label for="step2-fileUpload" class="btn btn-sm btn-secondary"><i class="fas fa-upload me-2"></i>Load Step 2 File</label>
+                             <input type="file" id="step2-fileUpload" class="d-none" accept=".json">
+                             <button id="step2-saveBtn" class="btn btn-sm btn-secondary"><i class="fas fa-save me-2"></i>Save Step 2 Data</button>
                         </div>
                         
-                        <!-- Area to display file contents in textareas -->
-                        <div id="file-content-area">
-                            <!-- Textareas will be dynamically inserted here by JavaScript -->
+                        <!-- Sticky Header for Controls -->
+                        <div id="step2-sticky-header" class="sticky-top bg-dark py-2">
+                             <!-- This content will be generated by JavaScript -->
+                        </div>
+
+                        <!-- Data Display Area -->
+                        <div id="step2-data-container" class="list-group">
+                            <!-- Data rows will be injected here -->
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </main>
-
+    
+    <!-- MODALS AND TOASTS -->
+    <div id="loading-modal" class="modal-backdrop fade show" style="display: none;">
+        <div class="d-flex justify-content-center align-items-center h-100">
+            <div class="text-center text-white">
+                <div class="spinner-border" role="status"></div>
+                <p id="loading-modal-text" class="mt-2">Processing...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Script loading order is important! -->
     <script src="lib/jquery/jquery.min.js"></script>
-    <script src="lib/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="lib/bootstrap/bootstrap.bundle.min.js"></script> <!-- For modals -->
     <script src="js/logger.js"></script>
     <script src="js/dummy-data.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/utils/date-parser.js"></script>
+    <script src="js/services/parserService.js"></script>
+    <script src="js/services/validatorService.js"></script>
+    <script src="js/ui/uiService.js"></script>
+    <script src="js/controllers/step1Controller.js"></script>
+    <script src="js/controllers/step2Controller.js"></script>
+    <script src="js/controllers/appController.js"></script>
 </body>
 </html>
