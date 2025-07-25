@@ -1,25 +1,34 @@
-const Step2Controller = (function(parser, validator, ui) {
+const Step2Controller = (function(preprocessor, parser, validator, ui) {
 
     let state = null; // Local reference to appState.data.step2
     let currentFile = null;
 
     function init() {
         if (!appState.data.step1.rawFiles.length) {
-            // Handle case where user navigates directly to step 2
             $('#step2-data-container').html('<div class="alert alert-warning">Please load data in Step 1 first.</div>');
             return;
         }
 
-        ui.showLoading('Parsing and validating files...');
+        ui.showLoading('Preprocessing and validating files...');
         
         // This setTimeout simulates an async operation and allows the UI to update
         setTimeout(() => {
             try {
-                // Process data from step 1 if it's not already processed
                 if (Object.keys(appState.data.step2.fileData).length === 0) {
                      appState.data.step1.rawFiles.forEach(file => {
-                        let parsed = parser.parse(file.content);
-                        let validated = validator.validate(parsed);
+                        // NEW PROCESSING PIPELINE
+                        const year = extractYearFromFile(file.fileName) || new Date().getFullYear();
+                        
+                        // 1. Preprocess
+                        const { transformedText, dateOrder } = preprocessor.transform(file.content, year);
+                        
+                        // 2. Parse the cleaner text
+                        let parsed = parser.parse(transformedText);
+                        
+                        // 3. Validate using the detected order
+                        let validated = validator.validate(parsed, dateOrder);
+
+                        // Store the final, validated data
                         appState.data.step2.fileData[file.fileName] = validated;
                     });
                 }
@@ -37,6 +46,16 @@ const Step2Controller = (function(parser, validator, ui) {
             }
         }, 50);
     }
+
+    /**
+     * Extracts a 4-digit year from a filename, or returns null.
+     * @param {string} fileName
+     * @returns {number|null}
+     */
+        function extractYearFromFile(fileName) {
+            const match = fileName.match(/\d{4}/);
+            return match ? parseInt(match[0], 10) : null;
+        }
 
     function revalidateAndRender() {
         if (!currentFile) return;
@@ -125,7 +144,6 @@ const Step2Controller = (function(parser, validator, ui) {
         const isError = item.type === 'error';
         const rowClass = isError ? 'row-error' : '';
 
-        // An error line is always editable
         if (isError) {
             contentHtml = `
                 <div class="row-content">
@@ -138,11 +156,17 @@ const Step2Controller = (function(parser, validator, ui) {
         } else {
             let innerContent = '';
             if (item.type === 'entry') {
-                innerContent = `<div class="timestamp">${new Date(item.isoDate).toLocaleString()}</div><div class="phrases">${item.phrases.join(' &bull; ')}</div>`;
+                const displayDate = new Date(item.isoDate).toLocaleString(undefined, {
+                    year: 'numeric', month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                });
+                innerContent = `
+                    <div class="d-flex w-100 align-items-center">
+                        <span class="timestamp me-3 text-nowrap">${displayDate}</span>
+                        <span class="phrases">${item.phrases.join(' • ')}</span>
+                    </div>`;
             } else if (item.type === 'comment') {
                 innerContent = `<div class="note-content fst-italic text-body-secondary">// ${item.content}</div>`;
-            } else if (item.type === 'date_marker') {
-                innerContent = `<div class="fw-bold text-primary">${new Date(item.isoDate).toDateString()}</div>`;
             }
             contentHtml = `<div class="row-content">${innerContent}</div>`;
         }
@@ -172,4 +196,4 @@ const Step2Controller = (function(parser, validator, ui) {
 
     return { init };
 
-})(ParserService, ValidatorService, uiService); // Inject dependencies
+})(PreprocessorService, ParserService, ValidatorService, uiService);

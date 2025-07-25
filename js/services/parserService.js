@@ -1,69 +1,44 @@
-const ParserService = (function(dateParser) {
+const ParserService = (function(logger) {
 
-    function parse(rawFileContent) {
-        try {
-            const linesWithSemicolonsSplit = [];
-            rawFileContent.split('\n').forEach(line => {
-                let currentLine = line.trim();
-                while(currentLine.includes(';')) {
-                    const splitIndex = currentLine.indexOf(';');
-                    linesWithSemicolonsSplit.push(currentLine.substring(0, splitIndex + 1).trim());
-                    currentLine = currentLine.substring(splitIndex + 1).trim();
-                }
-                if (currentLine) {
-                    linesWithSemicolonsSplit.push(currentLine);
-                }
-            });
+    /**
+     * Parses a block of pre-processed text where each line should be a timestamped entry or a comment.
+     * @param {string} preprocessedText - The text after transformation by PreprocessorService.
+     * @returns {Array<Object>} An array of parsed data objects.
+     */
+    function parse(preprocessedText) {
+        const parsedData = [];
+        const lines = preprocessedText.split('\n');
 
-            let currentDate = null;
-            const parsedData = [];
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
 
-            for (const rawLine of linesWithSemicolonsSplit) {
-                let line = rawLine.trim();
-                if (!line) continue;
+            const id = `item-${Date.now()}-${Math.random()}`;
 
-                const id = `item-${Date.now()}-${Math.random()}`;
-
-                // 1. Check for comment
-                if (line.startsWith('//') || line.startsWith('#')) {
-                    parsedData.push({ id, type: 'comment', content: line.substring(line.startsWith('//') ? 2 : 1).trim(), originalLine: rawLine });
-                    continue;
-                }
-
-                // 2. Check for a line that IS a date
-                const potentialDate = dateParser.parseDate(line.replace(/;/g, '').trim());
-                if (potentialDate && dateParser.isLineJustDate(line.replace(/;/g, '').trim())) {
-                    currentDate = potentialDate;
-                    parsedData.push({ id, type: 'date_marker', isoDate: currentDate.toISOString(), originalLine: rawLine });
-                    continue;
-                }
-
-                // 3. Check for time and data
-                const timeDataMatch = dateParser.extractTimeAndText(line);
-                if (timeDataMatch && currentDate) {
-                    const fullDateTime = new Date(currentDate);
-                    fullDateTime.setHours(timeDataMatch.hours, timeDataMatch.minutes, timeDataMatch.seconds, 0);
-                    
-                    const phrases = timeDataMatch.text
-                        .replace(/;$/, '') // Remove trailing semicolon
-                        .split(/[.,]/)
-                        .map(p => p.trim())
-                        .filter(p => p.length > 0);
-
-                    parsedData.push({ id, type: 'entry', isoDate: fullDateTime.toISOString(), phrases, originalLine: rawLine });
-                    continue;
-                }
-                
-                // 4. If nothing matches, it's an error
-                parsedData.push({ id, type: 'error', errorType: 'unrecognized_format', errorMsg: 'Cannot recognize line format.', originalLine: rawLine });
+            if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
+                parsedData.push({ id, type: 'comment', content: trimmedLine.substring(trimmedLine.startsWith('//') ? 2 : 1).trim(), originalLine: trimmedLine });
+                continue;
             }
-            return parsedData;
-        } catch (e) {
-            logger.error('Critical error during parsing', e);
-            // In a real app, you might want a more graceful failure
-            return [{ id: 'critical', type: 'error', errorType: 'critical_parse_error', errorMsg: 'A critical error occurred while parsing this file.', originalLine: '' }];
+
+            // Expects format: "YYYY-MM-DDTHH:MM:SS.sssZ data, more data"
+            const match = trimmedLine.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\s*(.*)/);
+
+            if (match) {
+                const isoDate = match[1];
+                const text = match[2];
+                const phrases = text
+                    .split(/[.,]/)
+                    .map(p => p.trim())
+                    .filter(p => p.length > 0);
+
+                parsedData.push({ id, type: 'entry', isoDate, phrases, originalLine: trimmedLine });
+            } else {
+                // If it doesn't match the expected format, it's an error.
+                parsedData.push({ id, type: 'error', errorType: 'unrecognized_format', errorMsg: 'Cannot recognize line format. Expected a timestamped entry.', originalLine: trimmedLine });
+            }
         }
+        return parsedData;
     }
 
     return { parse };
-})(DateParser); // Inject date parser utility
+})(logger);
