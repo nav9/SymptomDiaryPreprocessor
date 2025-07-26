@@ -1,4 +1,5 @@
 const DateParser = (function() {
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     // Extremely simplified parser. A real implementation would use a library or more robust regex.
     function parseDate(str) {
         // Try YYYY-MM-DD format
@@ -26,6 +27,7 @@ const DateParser = (function() {
     }
     
     function extractTimeAndText(str) {
+        // Updated Regex to be more flexible with spacing
         const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(.*)/);
         if(match) {
             return {
@@ -38,5 +40,42 @@ const DateParser = (function() {
         return null;
     }
 
-    return { parseDate, isLineJustDate, extractTimeAndText };
+
+        /**
+     * Formats an ISO date string into "DD Mmm YYYY HH:mm" format.
+     * @param {string} isoString - The date string from the data model.
+     * @returns {string} The formatted date string for display.
+     */
+        function formatDateForDisplay(isoString) {
+            if (!isoString) return 'Invalid Date';
+            try {
+                const d = new Date(isoString);
+                if (isNaN(d)) return 'Invalid Date';
+    
+                const day = d.getDate();
+                const month = MONTH_NAMES[d.getMonth()];
+                const year = d.getFullYear();
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+    
+                return `${day} ${month} ${year} ${hours}:${minutes}`;
+            } catch (e) {
+                return 'Invalid Date';
+            }
+        }
+        
+        function formatTimeForEdit(isoString) {
+            if (!isoString) return '';
+            try {
+                const d = new Date(isoString);
+                if (isNaN(d)) return '';
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;
+            } catch(e) {
+                return '';
+            }
+        }
+
+    return { parseDate, isLineJustDate, extractTimeAndText, formatDateForDisplay, formatTimeForEdit };
 })();
