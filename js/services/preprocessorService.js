@@ -1,16 +1,4 @@
-/**
- * @file preprocessorService.js
- * @description A service to transform raw, human-readable diary text into a structured,
- * line-by-line timestamped format that the parser can easily handle.
- */
 const PreprocessorService = (function(dateParser, logger) {
-
-    /**
-     * Main transformation method.
-     * @param {string} rawContent - The raw text content from a diary file.
-     * @param {number} year - The year associated with this file (e.g., from filename).
-     * @returns {{transformedText: string, dateOrder: 'asc'|'desc'}} The processed text and detected date order.
-     */
     function transform(rawContent, year) {
         if (!rawContent) {
             return { transformedText: '', dateOrder: 'asc' };
@@ -36,12 +24,6 @@ const PreprocessorService = (function(dateParser, logger) {
         }
     }
 
-    /**
-     * Parses raw text into an array of objects representing each line's type and content.
-     * @param {string} rawContent - The raw file content.
-     * @param {number} year - The year for date context.
-     * @returns {Array<Object>} An array like [{type, content, date}, ...].
-     */
     function buildIntermediateStructure(rawContent, year) {
         const lines = rawContent.split('\n');
         const structure = [];
@@ -59,9 +41,9 @@ const PreprocessorService = (function(dateParser, logger) {
                     continue;
                 }
 
-                const potentialDate = dateParser.parseDate(subLine, year);
-                if (potentialDate && dateParser.isLineJustDate(subLine)) {
-                    structure.push({ type: 'date_marker', date: potentialDate, content: subLine });
+                const potentialDateParts = dateParser.parseDayMonth(subLine);
+                if (potentialDateParts && dateParser.isLineJustDate(subLine)) {
+                    structure.push({ type: 'date_marker', dateParts: { ...potentialDateParts, year }, content: subLine });
                     continue;
                 }
 
@@ -72,13 +54,13 @@ const PreprocessorService = (function(dateParser, logger) {
         return structure;
     }
 
-    /**
-     * Analyzes date markers to determine if they are mostly ascending or descending.
-     * @param {Array<Object>} intermediateData - The structured data.
-     * @returns {'asc'|'desc'}
-     */
     function detectDateOrder(intermediateData) {
-        const dateMarkers = intermediateData.filter(item => item.type === 'date_marker').map(item => item.date);
+        const dateMarkers = intermediateData
+            .filter(item => item.type === 'date_marker')
+            .map(item => {
+                const p = item.dateParts;
+                return new Date(p.year, p.month, p.day);
+            });
         if (dateMarkers.length < 2) {
             return 'desc'; // Default to descending for diaries
         }
@@ -96,18 +78,13 @@ const PreprocessorService = (function(dateParser, logger) {
         return ascCount > descCount ? 'asc' : 'desc';
     }
 
-    /**
-     * Builds the final string with prepended timestamps.
-     * @param {Array<Object>} intermediateData - The structured data.
-     * @returns {string} The transformed text content.
-     */
     function buildTransformedText(intermediateData) {
-        let currentDate = null;
+        let currentDateParts = null;
         const transformedLines = [];
 
         for (const item of intermediateData) {
             if (item.type === 'date_marker') {
-                currentDate = item.date;
+                currentDateParts = item.dateParts;
                 continue; // Date markers are consumed and not added to the output.
             }
 
@@ -117,21 +94,19 @@ const PreprocessorService = (function(dateParser, logger) {
             }
 
             if (item.type === 'time_entry') {
-                if (!currentDate) {
-                    // This is an orphaned time entry, pass it through as is for the parser to flag as an error.
-                    transformedLines.push(item.content);
+                if (!currentDateParts) {
+                    transformedLines.push(item.content); // Orphaned line
                     continue;
                 }
                 const timeData = dateParser.extractTimeAndText(item.content);
                 if (timeData) {
-                    const fullDateTime = new Date(currentDate);
-                    fullDateTime.setHours(timeData.hours, timeData.minutes, timeData.seconds, 0);
-                    // Prepend the ISO string to the text part of the line.
-                    const newLine = `${fullDateTime.toISOString()} ${timeData.text}`;
-                    transformedLines.push(newLine);
+                    // NEW: Prepend date AND time parts for the parser.
+                    const { year, month, day } = currentDateParts;
+                    const { hours, minutes, text } = timeData;
+                    // Create a special, machine-readable line for the parser
+                    transformedLines.push(`[${year}-${month}-${day} ${hours}:${minutes}] ${text}`);
                 } else {
-                    // Could not extract time, pass it through for the parser to flag.
-                    transformedLines.push(item.content);
+                    transformedLines.push(item.content); // Not a time entry
                 }
             }
         }
@@ -139,7 +114,5 @@ const PreprocessorService = (function(dateParser, logger) {
     }
 
 
-    return {
-        transform
-    };
+    return { transform };
 })(DateParser, logger);

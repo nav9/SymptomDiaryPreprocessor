@@ -1,197 +1,310 @@
-/**
- * @file step1Controller.js
- * @description Manages the logic for Step 1: Data Input.
- * This includes handling file uploads, loading dummy data, displaying file
- * content in editable textareas, and syncing changes back to the global state.
- */
 
-const Step1Controller = (function(logger, ui, dummyData) {
-    // A private variable to hold the navigation callback function provided by the AppController.
-    let navigationCallback = null;
+const Step1Controller = (function(logger, recognizer) {
 
-    // --- Private Methods ---
+    const selectors = {
+        initialLoadSection: $('#initial-load-section'),
+        editorSection: $('#editor-section'),
+        fileUpload: $('#fileUpload'),
+        loadDummyBtn: $('#loadDummyDataBtn'),
+        stickyHeader: $('#step1-sticky-header'),
+        dataContainer: $('#data-container'),
+        proceedBtn: $('#proceed-to-step2')
+    };
 
-    /**
-     * Handles the 'change' event of the file input element.
-     * Reads selected .txt files and populates the application state.
-     * @param {Event} event - The file input change event.
-     */
-    function handleFileUpload(event) {
-        const files = event.target.files;
-        if (!files || files.length === 0) {
-            logger.warn("File selection was cancelled or no files were chosen.");
-            return;
-        }
 
-        ui.showLoading(`Reading ${files.length} file(s)...`);
+    // Data structure: { "2024": [ {id, rawText, type, reason}, ... ], "2023": [ ... ] }
+    const yearlyData = {};
+    let currentYear = null;
 
-        try {
-            // Clear any previous data before loading new files.
-            appState.data.step1.rawFiles = [];
-
-            const validFiles = Array.from(files).filter(file => {
-                if (!file.name.toLowerCase().endsWith('.txt')) {
-                    logger.warn(`Skipping non-TXT file: ${file.name}`);
-                    return false;
-                }
-                return true;
-            });
-
-            if (validFiles.length === 0) {
-                alert("No valid .txt files were selected. Please choose files with a .txt extension.");
-                ui.hideLoading();
-                return;
-            }
-
-            let filesProcessed = 0;
-            validFiles.forEach(file => {
-                const reader = new FileReader();
-
-                reader.onload = function(e) {
-                    // Push the file data into the global state.
-                    appState.data.step1.rawFiles.push({
-                        fileName: file.name,
-                        content: e.target.result
-                    });
-                };
-
-                reader.onerror = function(e) {
-                    logger.error(`Error reading file ${file.name}:`, e);
-                    alert(`An error occurred while trying to read ${file.name}. Please check the file and try again.`);
-                };
-
-                reader.onloadend = function() {
-                    filesProcessed++;
-                    // Once all files have been processed (successfully or not), update the UI.
-                    if (filesProcessed === validFiles.length) {
-                        logger.info("All selected files have been processed.");
-                        displayFileContents();
-                        ui.hideLoading();
-                    }
-                };
-
-                reader.readAsText(file);
-            });
-        } catch (error) {
-            logger.error("An unexpected error occurred during file handling.", error);
-            alert("A critical error occurred. Please refresh the page and try again.");
-            ui.hideLoading();
-        }
+    function init(navCallback) {
+        logger.info("Initializing Definitive Step 1 Controller.");
+        attachEventListeners();
     }
+    
+    function handleDataLoad(files) {
+        Object.keys(yearlyData).forEach(key => delete yearlyData[key]);
 
-    /**
-     * Handles the click event for the 'Load Sample Data' button.
-     * It performs a deep copy of the dummy data into the application state.
-     */
-    function handleDummyDataLoad() {
-        logger.info("Loading sample data.");
-        // Use JSON methods to perform a deep copy. This prevents edits to the
-        // state from modifying the original dummyData constant.
-        try {
-            appState.data.step1.rawFiles = JSON.parse(JSON.stringify(dummyData));
-            displayFileContents();
-        } catch (error) {
-            logger.error("Failed to deep copy dummy data.", error);
-            alert("Could not load sample data due to an internal error.");
-        }
-    }
-
-    /**
-     * Renders the loaded file content into editable textareas on the page.
-     * This function reads from the global state and updates the DOM.
-     */
-    function displayFileContents() {
-        const fileContentArea = $('#file-content-area');
-        const dataProcessingSection = $('#data-processing-section');
-        
-        fileContentArea.empty(); // Clear any existing textareas.
-
-        if (!appState.data.step1.rawFiles || appState.data.step1.rawFiles.length === 0) {
-            dataProcessingSection.hide();
-            return;
-        }
-
-        appState.data.step1.rawFiles.forEach((fileData, index) => {
-            const fileId = `file-textarea-${index}`;
-            // Construct the HTML for each file's display.
-            const fileHtml = `
-                <div class="mb-3">
-                    <label for="${fileId}" class="form-label fw-bold">
-                        <i class="fas fa-file-alt me-2"></i>${fileData.fileName}
-                    </label>
-                    <textarea class="form-control font-monospace" id="${fileId}" data-index="${index}" rows="8" style="font-size: 0.8rem; tab-size: 4;">${fileData.content}</textarea>
-                </div>
-            `;
-            fileContentArea.append(fileHtml);
+        files.forEach(file => {
+            const yearMatch = file.fileName.match(/\d{4}/);
+            const year = yearMatch ? yearMatch[0] : 'Unsorted';
+            
+            // Filter out empty lines during the initial load
+            const lines = file.content.split('\n').filter(line => line.trim() !== '');
+            if (!yearlyData[year]) yearlyData[year] = [];
+            
+            lines.forEach(line => {
+                yearlyData[year].push({
+                    id: `item-${Date.now()}-${Math.random()}`,
+                    rawText: line,
+                    type: 'new',
+                    reason: ''
+                });
+            });
         });
 
-        // Show the section containing the 'Next' button and the textareas.
-        dataProcessingSection.show();
-        logger.info("File contents have been rendered in textareas for review.");
+        if (Object.keys(yearlyData).length > 0) {
+            selectors.initialLoadSection.hide();
+            selectors.editorSection.show();
+            currentYear = Object.keys(yearlyData).sort()[0];
+            validateAndRender();
+        }
     }
 
-    /**
-     * Handles the 'input' event on any textarea, syncing its content
-     * back to the corresponding object in the global state.
-     * @param {Event} event - The textarea input event.
-     */
-    function handleTextareaInput(event) {
-        const textarea = $(event.target);
-        const index = textarea.data('index'); // Retrieve the index stored in the data attribute.
-        const newContent = textarea.val();
+    function validateAndRender() {
+        if (!currentYear) return;
+        let lastDateIsValid = false;
+        let currentYearErrorCount = 0;
+        let totalErrorCount = 0;
 
-        // Update the state if the index is valid.
-        if (appState.data.step1.rawFiles[index] !== undefined) {
-            appState.data.step1.rawFiles[index].content = newContent;
-            appState.isDirty = true; // Any edit makes the step dirty.
+        // First, calculate total errors across all years
+        Object.values(yearlyData).forEach(yearLines => {
+            let lastDate = false;
+            yearLines.forEach(line => {
+                const result = recognizer.recognizeLine(line.rawText, lastDate);
+                if(result.type === 'error') totalErrorCount++;
+                if(result.type === 'date') lastDate = true;
+                else if (result.type !== 'time' && result.type !== 'comment') lastDate = false;
+            });
+        });
+        
+        // Then, process the current year and update its state
+        yearlyData[currentYear].forEach(line => {
+            const result = recognizer.recognizeLine(line.rawText, lastDateIsValid);
+            line.type = result.type;
+            line.reason = result.reason;
+            if (line.type === 'date') lastDateIsValid = true;
+            else if (line.type !== 'time' && line.type !== 'comment') lastDateIsValid = false;
+            if (line.type === 'error') currentYearErrorCount++;
+        });
+
+        renderStickyHeader(currentYearErrorCount, totalErrorCount);
+        renderDataContainer();
+        updateProceedButton(currentYearErrorCount);
+    }
+    
+    function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
+        const years = Object.keys(yearlyData).sort();
+        const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+
+        // NEW: Logic to disable next/prev buttons
+        const errorIds = yearlyData[currentYear].filter(l => l.type === 'error').map(l => l.id);
+        const nextPrevDisabled = errorIds.length < 2 ? 'disabled' : '';
+
+        const headerHtml = `
+            <div class="row g-2 align-items-center">
+                <div class="col-auto">
+                    <label for="year-select" class="form-label mb-0">Year:</label>
+                    <select id="year-select" class="form-select form-select-sm">${options}</select>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-${currentYearErrorCount > 0 ? 'danger' : 'success'}">
+                        ${currentYearErrorCount} issues / ${totalErrorCount} total
+                    </span>
+                </div>
+                <div class="col">
+                    <button id="prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
+                    <button id="next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
+                </div>
+                <div class="col-auto">
+                    <button id="add-btn" class="btn btn-sm btn-outline-primary" title="Add New Line"><i class="fas fa-plus"></i></button>
+                    <button id="edit-btn" class="btn btn-sm btn-outline-warning" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
+                    <button id="delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
+                </div>
+            </div>`;
+        selectors.stickyHeader.html(headerHtml);
+    }
+
+    function renderDataContainer() {
+        selectors.dataContainer.empty();
+        if (!yearlyData[currentYear]) return;
+
+        yearlyData[currentYear].forEach(item => {
+            selectors.dataContainer.append(renderRow(item));
+        });
+    }
+
+    function renderRow(item) {
+        let contentHtml = '';
+        let rowClass = item.type === 'error' ? 'row-error' : '';
+
+        // If the item is currently being edited, force it into an error-style editable view
+        if (item.isEditing) {
+            rowClass = 'row-error';
+            contentHtml = `
+                <div class="row-content w-100">
+                    <textarea class="editable-textarea" rows="1">${item.rawText}</textarea>
+                    <div class="d-flex justify-content-end align-items-center mt-1">
+                        <button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button>
+                        <button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button>
+                    </div>
+                </div>`;
         } else {
-            logger.warn(`Attempted to update content for an invalid index: ${index}`);
+            // Standard read-only view
+            let lineClass = 'line-text';
+            if (item.type === 'comment') lineClass += ' comment-text';
+            if (item.type === 'date') lineClass += ' date-text';
+
+            contentHtml = `
+                <div class="row-content w-100">
+                    <span class="${lineClass}">${item.rawText || ' '}</span>
+                    ${item.type === 'error' ? `<div class="error-message">${item.reason}</div>` : ''}
+                </div>`;
+        }
+
+        return `
+            <div id="${item.id}" class="list-group-item data-row ${rowClass}">
+                <input class="form-check-input" type="checkbox" data-id="${item.id}">
+                ${contentHtml}
+            </div>`;
+    }
+
+    function updateProceedButton(errorCount) {
+        if (errorCount === 0 && yearlyData[currentYear] && yearlyData[currentYear].length > 0) {
+            selectors.proceedBtn.show();
+        } else {
+            selectors.proceedBtn.hide();
         }
     }
     
-    /**
-     * Attaches all necessary event listeners for this step.
-     * Using .off().on() prevents attaching duplicate listeners if init is called multiple times.
-     */
     function attachEventListeners() {
-        const container = $('#step-1-content');
+        // Initial load listeners
+        const fileDataPromises = (files) => Array.from(files).map(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve({ fileName: file.name, content: e.target.result });
+            reader.onerror = e => reject(e);
+            reader.readAsText(file);
+        }));
 
-        container.on('change', '#fileUpload', handleFileUpload);
-        container.on('click', '#loadDummyDataBtn', handleDummyDataLoad);
-        container.on('input', 'textarea', handleTextareaInput);
+        selectors.fileUpload.on('change', function(event) {
+            if (!event.target.files.length) return;
+            Promise.all(fileDataPromises(event.target.files)).then(handleDataLoad);
+        });
+        selectors.loadDummyBtn.on('click', () => handleDataLoad(dummyData));
 
-        container.on('click', '#step1-nextBtn', function() {
-            if (!appState.data.step1.rawFiles || appState.data.step1.rawFiles.length === 0) {
-                alert("Please load data before proceeding.");
-                return;
+        // Event delegation for dynamic elements
+        const header = selectors.stickyHeader;
+        const container = selectors.dataContainer;
+
+        header.off(); // Clear previous delegated listeners
+        container.off();
+
+        header.on('change', '#year-select', function() {
+            currentYear = $(this).val();
+            validateAndRender();
+        });
+
+        // --- OK/CANCEL in edit mode ---
+        container.on('click', '.ok-btn', function() {
+            const itemId = $(this).data('id');
+            const item = yearlyData[currentYear].find(d => d.id === itemId);
+            if (item) {
+                item.rawText = $(this).closest('.row-content').find('textarea').val();
+                item.isEditing = false;
             }
-            logger.info("Proceeding to Step 2.");
-            // Use the stored callback to trigger navigation in the main AppController.
-            if (navigationCallback) {
-                navigationCallback(2);
+            validateAndRender();
+        });
+
+        container.on('click', '.cancel-btn', function() {
+            const itemId = $(this).data('id');
+            const item = yearlyData[currentYear].find(d => d.id === itemId);
+            if (item) item.isEditing = false;
+            validateAndRender();
+        });
+        
+        // --- Control Bar Button Logic ---
+        header.on('click', '#edit-btn', function() {
+            if ($(this).is(':disabled')) return;
+            container.find('input:checked').each(function() {
+                const itemId = $(this).data('id');
+                const item = yearlyData[currentYear].find(d => d.id === itemId);
+                if (item) item.isEditing = true;
+            });
+            validateAndRender();
+            container.find('input:checked').prop('checked', false); // Uncheck after editing
+            header.find('#edit-btn, #delete-btn').prop('disabled', true);
+        });
+
+        header.on('click', '#delete-btn', function() {
+            if ($(this).is(':disabled')) return;
+            const checkedIds = new Set();
+            container.find('input:checked').each(function() { checkedIds.add($(this).data('id')); });
+            if (confirm(`Delete ${checkedIds.size} line(s)?`)) {
+                yearlyData[currentYear] = yearlyData[currentYear].filter(item => !checkedIds.has(item.id));
+                validateAndRender();
             }
         });
-    }
-
-    // --- Public Methods ---
-
-    /**
-     * Initializes the controller for Step 1.
-     * This is the public entry point called by the AppController.
-     * @param {Function} navCallback - The function to call to navigate to another step.
-     */
-    function init(navCallback) {
-        logger.info("Initializing Step 1 Controller.");
-        navigationCallback = navCallback;
-        attachEventListeners();
         
-        // Render existing data if user navigates back to this step
-        displayFileContents();
+        // ===== NEWLY IMPLEMENTED 'ADD' BUTTON LOGIC =====
+        header.on('click', '#add-btn', function() {
+            const newItem = {
+                id: `item-${Date.now()}-${Math.random()}`,
+                rawText: '',
+                isEditing: true,
+                type: 'new'
+            };
+
+            const checkedCheckboxes = container.find('input:checked');
+            // Default to the end of the array
+            let insertIndex = yearlyData[currentYear].length; 
+            if (checkedCheckboxes.length > 0) {
+                // Insert after the FIRST selected item
+                const firstSelectedId = checkedCheckboxes.first().data('id');
+                const foundIndex = yearlyData[currentYear].findIndex(d => d.id === firstSelectedId);
+                if (foundIndex !== -1) {
+                    insertIndex = foundIndex + 1;
+                }
+            }
+
+            yearlyData[currentYear].splice(insertIndex, 0, newItem);
+            validateAndRender();
+            
+            // Scroll to and focus the new textarea
+            const newElement = document.getElementById(newItem.id);
+            if (newElement) {
+                newElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                $(newElement).find('textarea').focus();
+            }
+        });
+
+        // --- Checkbox selection enables/disables buttons ---
+        container.on('change', 'input[type="checkbox"]', function() {
+            const checkedCount = container.find('input:checked').length;
+            header.find('#edit-btn, #delete-btn').prop('disabled', checkedCount === 0);
+        });
+
+        // --- NEW: PREV/NEXT ERROR NAVIGATION ---
+        header.on('click', '#next-error-btn, #prev-error-btn', function() {
+            if ($(this).is(':disabled')) return;
+            const isNext = $(this).attr('id') === 'next-error-btn';
+
+            // Get all error elements from the DOM
+            const errorElements = container.find('.row-error').get();
+            if (errorElements.length === 0) return;
+
+            // Find the index of the first error currently visible on screen
+            let currentVisibleIndex = -1;
+            for(let i=0; i < errorElements.length; i++) {
+                const rect = errorElements[i].getBoundingClientRect();
+                // Check if the element's top is within the viewport
+                if(rect.top >= 0 && rect.top <= window.innerHeight) {
+                    currentVisibleIndex = i;
+                    break;
+                }
+            }
+            
+            let targetIndex;
+            if (isNext) {
+                // If an error is visible, go to the next one, otherwise start from the top
+                targetIndex = currentVisibleIndex > -1 ? (currentVisibleIndex + 1) % errorElements.length : 0;
+            } else { // isPrev
+                // If an error is visible, go to the previous one, otherwise start from the bottom
+                targetIndex = currentVisibleIndex > -1 ? (currentVisibleIndex - 1 + errorElements.length) % errorElements.length : errorElements.length - 1;
+            }
+
+            errorElements[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });        
     }
 
-    // Expose the public init function.
-    return {
-        init
-    };
+    return { init };
 
-})(logger, uiService, dummyData); // "Inject" dependencies.```
+})(logger, LineRecognizerService);

@@ -209,18 +209,13 @@ const Step2Controller = (function(preprocessor, parser, validator, ui, dateParse
             </div>`;
     }
     
-    /**
-     * PRIVATE HELPER: Generates the human-friendly text for an edit box based on item type.
-     * @param {Object} item - The data item from the state.
-     * @returns {string} The text to display in the textarea.
-     */
     function _getEditableText(item) {
         if (item.type === 'entry') {
-            const time = dateParser.formatTimeForEdit(item.isoDate);
+            // NEW: Build from components, not a Date object.
+            const time = `${item.timeParts.hours}:${item.timeParts.minutes}`;
             const text = item.phrases.join(', ');
             return `${time} ${text}`;
         }
-        // For comments or raw errors, just show the original line.
         return item.originalLine;
     }
 
@@ -258,20 +253,12 @@ const Step2Controller = (function(preprocessor, parser, validator, ui, dateParse
                 const newTimeData = dateParser.extractTimeAndText(textareaValue);
                 
                 if (newTimeData) {
-                    // We have valid new time data. Combine it with the item's existing date.
-                    const oldDate = new Date(itemInState.isoDate || Date.now()); // Use existing date, or now as fallback
+                    // We have new time parts, combine them with old date parts.
+                    const { year, month, day } = itemInState.dateParts;
+                    const { hours, minutes, text } = newTimeData;
                     
-                    const newFullDate = new Date(
-                        oldDate.getFullYear(),
-                        oldDate.getMonth(),
-                        oldDate.getDate(),
-                        newTimeData.hours,
-                        newTimeData.minutes,
-                        newTimeData.seconds
-                    );
-                    
-                    // Construct the new 'originalLine' in the format our parser expects.
-                    itemInState.originalLine = `${newFullDate.toISOString()} ${newTimeData.text}`;
+                    // Reconstruct the machine-readable line for the parser.
+                    itemInState.originalLine = `[${year}-${month}-${day} ${hours}:${minutes}] ${text}`;
                 } else {
                     // The user entered text that doesn't look like "HH:mm text".
                     // Treat the entire entry as the new originalLine and let the

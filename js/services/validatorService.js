@@ -1,16 +1,26 @@
 const ValidatorService = (function() {
 
-    /**
-     * Validates parsed data for chronological order.
-     * @param {Array<Object>} parsedData - The array of parsed data items.
-     * @param {'asc'|'desc'} dateOrder - The expected order for different dates.
-     * @returns {Array<Object>} The data array with error properties attached if needed.
-     */
     function validate(parsedData, dateOrder) {
         const entries = parsedData.filter(item => item.type === 'entry');
-        if (entries.length < 2) return parsedData;
+        // Phase 1: Validate individual entries
+        for (const item of entries) {
+            const h = parseInt(item.timeParts.hours, 10);
+            const m = parseInt(item.timeParts.minutes, 10);
+            if (h > 23 || h < 0 || m > 59 || m < 0 || isNaN(h) || isNaN(m)) {
+                flagError(item, 'invalid_time', `Invalid time value: ${item.timeParts.hours}:${item.timeParts.minutes}`);
+            } else if (item.errorType === 'invalid_time') {
+                // Clear error if it was fixed
+                clearError(item);
+            }
+        }        
+        
+        
+        // Phase 2: Validate order, but only on entries that are valid so far
+        const validEntries = entries.filter(item => !item.errorType && item.isoDate);
+        if (validEntries.length < 2) return parsedData;
 
-        for (let i = 1; i < entries.length; i++) {
+
+        for (let i = 1; i < validEntries.length; i++) {
             const currentItem = entries[i];
             const prevItem = entries[i - 1];
 

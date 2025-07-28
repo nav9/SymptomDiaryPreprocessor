@@ -1,10 +1,4 @@
-const ParserService = (function(logger) {
-
-    /**
-     * Parses a block of pre-processed text where each line should be a timestamped entry or a comment.
-     * @param {string} preprocessedText - The text after transformation by PreprocessorService.
-     * @returns {Array<Object>} An array of parsed data objects.
-     */
+const ParserService = (function(dateParser, logger) {
     function parse(preprocessedText) {
         const parsedData = [];
         const lines = preprocessedText.split('\n');
@@ -16,29 +10,35 @@ const ParserService = (function(logger) {
             const id = `item-${Date.now()}-${Math.random()}`;
 
             if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
-                parsedData.push({ id, type: 'comment', content: trimmedLine.substring(trimmedLine.startsWith('//') ? 2 : 1).trim(), originalLine: trimmedLine });
+                parsedData.push({ id, type: 'comment', content: trimmedLine, originalLine: trimmedLine });
                 continue;
             }
 
             // Expects format: "YYYY-MM-DDTHH:MM:SS.sssZ data, more data"
-            const match = trimmedLine.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\s*(.*)/);
+            const match = trimmedLine.match(/^\[(\d{4})-(\d{1,2})-(\d{1,2})\s(\d{1,2}):(\d{1,2})\]\s*(.*)/);
 
             if (match) {
-                const isoDate = match[1];
-                const text = match[2];
-                const phrases = text
-                    .split(/[.,]/)
-                    .map(p => p.trim())
-                    .filter(p => p.length > 0);
+                const [_, year, month, day, hours, minutes, text] = match;
+                
+                // Attempt to build an ISO string for sorting. It will be null if time is invalid.
+                const isoDate = dateParser.buildISOString(year, month, day, hours, minutes);
 
-                parsedData.push({ id, type: 'entry', isoDate, phrases, originalLine: trimmedLine });
+                const phrases = text.split(/[.,]/).map(p => p.trim()).filter(Boolean);
+
+                parsedData.push({
+                    id, type: 'entry',
+                    dateParts: { year, month, day },
+                    timeParts: { hours, minutes },
+                    phrases,
+                    isoDate, // Can be null!
+                    originalLine: trimmedLine // Store the machine line for now
+                });
             } else {
-                // If it doesn't match the expected format, it's an error.
-                parsedData.push({ id, type: 'error', errorType: 'unrecognized_format', errorMsg: 'Cannot recognize line format. Expected a timestamped entry.', originalLine: trimmedLine });
+                parsedData.push({ id, type: 'error', errorType: 'unrecognized_format', errorMsg: 'Cannot recognize line format.', originalLine: trimmedLine });
             }
         }
         return parsedData;
     }
 
     return { parse };
-})(logger);
+})(DateParser, logger);

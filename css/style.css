@@ -148,28 +148,15 @@ main {
     gap: 10px;
 }
 
-.data-row .form-check-input {
-    margin-top: 0;
-}
-
-.data-row .drag-handle {
-    cursor: grab;
-}
-
-.data-row .row-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.data-row .timestamp {
-    font-family: monospace;
-    font-size: 0.8rem;
-    color: #a0a0a0;
-}
-
-.data-row .phrases, .data-row .note-content {
-    font-size: 0.9rem;
+.data-row .form-check-input { margin-top: 0; }
+.data-row .drag-handle { cursor: grab; }
+.data-row .row-content { flex-grow: 1; }
+.data-row .line-text { font-family: monospace; }
+.data-row .comment-text { font-style: italic; color: #6c757d; }
+.data-row .date-text {
+    font-weight: bold;
+    color: var(--bs-body-color); /* Use the default text color, which is off-white */
+    margin-top: 0.5em;
 }
 
 /* --- Error and Edit States --- */
@@ -194,9 +181,59 @@ main {
     font-size: 0.85rem;
     padding: 5px;
 }
-
 /* --- Modal --- */
 #loading-modal {
     z-index: 1060; /* Higher than sticky header */
     background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* --- Editor Styles for Step 1 --- */
+#data-editor {
+    min-height: 400px;
+    max-height: 60vh;
+    overflow-y: auto;
+    white-space: pre-wrap; /* Allows lines to wrap */
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 0.9rem;
+    padding: 10px;
+}
+
+/* We style spans inside the editor */
+#data-editor .error-line {
+    background-color: rgba(220, 53, 69, 0.2); /* Bootstrap's danger color, semi-transparent */
+    display: block; /* Ensures the background covers the whole line */
+}
+
+#data-editor .comment-line {
+    color: #6c757d; /* Bootstrap's secondary text color */
+    font-style: italic;
+    display: block;
+}
+
+#data-editor .date-line {
+    color: #0d6efd; /* Bootstrap's primary color */
+    font-weight: bold;
+    display: block;
+    margin-top: 0.5em; /* Add some space before a new date section */
+}
+
+#data-editor .time-line {
+    display: block;
+}
+
+/* --- Sticky Header for Step 1 Controls --- */
+#step1-sticky-header {
+    top: 56px; /* Adjust if navbar height changes */
+    z-index: 100;
+    border-bottom: 1px solid var(--bs-border-color);
+    background-color: var(--bs-body-bg) !important;
+}
+
+/* --- Data Row Styling --- */
+.list-group-item.data-row {
+    padding: 0.4rem 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
