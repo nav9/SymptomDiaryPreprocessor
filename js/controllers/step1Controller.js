@@ -79,9 +79,11 @@ const Step1Controller = (function(logger, recognizer) {
             let lastDate = false;
             yearLines.forEach(line => {
                 const result = recognizer.recognizeLine(line.rawText, lastDate);
-                if(result.type === 'error') totalErrorCount++;
-                if(result.type === 'date') lastDate = true;
-                else if (result.type !== 'time' && result.type !== 'comment') lastDate = false;
+                if(result.type === 'error') {totalErrorCount++;}
+                if(result.type === 'date') {lastDate = true;}
+                else if (result.type !== 'time' && result.type !== 'comment') {
+                    lastDate = false;
+                }
             });
         });
         
@@ -97,7 +99,7 @@ const Step1Controller = (function(logger, recognizer) {
 
         renderStickyHeader(currentYearErrorCount, totalErrorCount);
         renderDataContainer();
-        updateProceedButton(currentYearErrorCount);
+        updateProceedButton(totalErrorCount);
     }
     
     function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
@@ -185,7 +187,7 @@ const Step1Controller = (function(logger, recognizer) {
             </button>`;
         
         // Use jQuery's .html() to replace content, effectively hiding/showing
-        if (totalErrorCount === 0 && yearlyData[currentYear] && yearlyData[currentYear].length > 0) {
+        if (totalErrorCount === 0 && Object.keys(yearlyData).length > 0) {
             selectors.topProceedContainer.html(proceedButtonHtml);
             selectors.bottomProceedContainer.html(proceedButtonHtml);
         } else {
@@ -276,22 +278,33 @@ const Step1Controller = (function(logger, recognizer) {
         });
         
         header.on('click', '#save-btn', function() {
-            if (!currentYear) return;
+            alert("entered");
+            if (Object.keys(yearlyData).length === 0) return;
+            
+            if (!confirm(`This will attempt to download ${Object.keys(yearlyData).length} file(s). Continue?`)) {
+                return;
+            }
+
             try {
-                const textToSave = yearlyData[currentYear].map(line => line.rawText).join('\n');
-                const blob = new Blob([textToSave], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Step1_data_${currentYear}.txt`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                logger.info(`Saved data for year ${currentYear}.`);
+                Object.entries(yearlyData).forEach(([year, lines]) => {
+                    const textToSave = lines.map(line => line.rawText).join('\n');
+                    const blob = new Blob([textToSave], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Step1_cleaned_${year}.txt`;
+                    
+                    // This triggers the download. A slight delay between downloads can help prevent browser blocking.
+                    setTimeout(() => {
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }, 200); // 200ms delay between each file download
+                });
+                logger.info("Initiated save for all yearly data.");
             } catch (e) {
-                logger.error("Failed to save file.", e);
-                alert("Could not save the file due to a browser error.");
+                logger.error("Failed to save files.", e);
+                alert("Could not save the files due to a browser error.");
             }
         });
 
