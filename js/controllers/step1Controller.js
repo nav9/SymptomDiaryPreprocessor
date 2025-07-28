@@ -8,7 +8,8 @@ const Step1Controller = (function(logger, recognizer) {
         loadDummyBtn: $('#loadDummyDataBtn'),
         stickyHeader: $('#step1-sticky-header'),
         dataContainer: $('#data-container'),
-        proceedBtn: $('#proceed-to-step2')
+        topProceedContainer: $('#top-proceed-container'), 
+        bottomProceedContainer: $('#bottom-proceed-container')
     };
 
 
@@ -28,16 +29,33 @@ const Step1Controller = (function(logger, recognizer) {
             const yearMatch = file.fileName.match(/\d{4}/);
             const year = yearMatch ? yearMatch[0] : 'Unsorted';
             
-            // Filter out empty lines during the initial load
-            const lines = file.content.split('\n').filter(line => line.trim() !== '');
+            const rawLines = file.content.split('\n');
+            const processedLines = [];
+
+            // NEW: Semicolon splitting logic
+            rawLines.forEach(line => {
+                const subLines = line.split(';');
+                subLines.forEach((subLine, index) => {
+                    let finalLine = subLine.trim();
+                    // Keep the semicolon unless it's the very last sub-line from the original line.
+                    if (finalLine && index < subLines.length - 1) {
+                        finalLine += ';';
+                    }
+                    if(finalLine) processedLines.push(finalLine);
+                });
+            });
+
             if (!yearlyData[year]) yearlyData[year] = [];
             
-            lines.forEach(line => {
+            processedLines.forEach(line => {
+                // NEW: Trim trailing semicolon from all final lines.
+                const cleanedLine = line.endsWith(';') ? line.slice(0, -1) : line;
+                if (cleanedLine.trim() === '') return; // Ignore empty lines
+
                 yearlyData[year].push({
                     id: `item-${Date.now()}-${Math.random()}`,
-                    rawText: line,
-                    type: 'new',
-                    reason: ''
+                    rawText: cleanedLine,
+                    type: 'new'
                 });
             });
         });
@@ -89,7 +107,7 @@ const Step1Controller = (function(logger, recognizer) {
         // NEW: Logic to disable next/prev buttons
         const errorIds = yearlyData[currentYear].filter(l => l.type === 'error').map(l => l.id);
         const nextPrevDisabled = errorIds.length < 2 ? 'disabled' : '';
-
+        const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
         const headerHtml = `
             <div class="row g-2 align-items-center">
                 <div class="col-auto">
@@ -97,7 +115,7 @@ const Step1Controller = (function(logger, recognizer) {
                     <select id="year-select" class="form-select form-select-sm">${options}</select>
                 </div>
                 <div class="col-auto">
-                    <span class="badge bg-${currentYearErrorCount > 0 ? 'danger' : 'success'}">
+                <span class="badge ${errorBadgeClass}">
                         ${currentYearErrorCount} issues / ${totalErrorCount} total
                     </span>
                 </div>
@@ -105,12 +123,14 @@ const Step1Controller = (function(logger, recognizer) {
                     <button id="prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
                     <button id="next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
                 </div>
-                <div class="col-auto">
-                    <button id="add-btn" class="btn btn-sm btn-outline-primary" title="Add New Line"><i class="fas fa-plus"></i></button>
-                    <button id="edit-btn" class="btn btn-sm btn-outline-warning" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
+                <div class="col-auto ms-auto">
+                    <button id="add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button>
+                    <button id="edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
                     <button id="delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
+                    <button id="save-btn" class="btn btn-sm btn-primary" title="Save Year Data"><i class="fas fa-save"></i></button>
                 </div>
-            </div>`;
+            </div>
+            <div id="top-proceed-container" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
     }
 
@@ -158,11 +178,19 @@ const Step1Controller = (function(logger, recognizer) {
             </div>`;
     }
 
-    function updateProceedButton(errorCount) {
-        if (errorCount === 0 && yearlyData[currentYear] && yearlyData[currentYear].length > 0) {
-            selectors.proceedBtn.show();
+    function updateProceedButton(totalErrorCount) {
+        const proceedButtonHtml = `
+            <button id="proceed-to-step2" class="btn btn-lg btn-primary">
+                All Clear! Proceed to Step 2 <i class="fas fa-arrow-right"></i>
+            </button>`;
+        
+        // Use jQuery's .html() to replace content, effectively hiding/showing
+        if (totalErrorCount === 0 && yearlyData[currentYear] && yearlyData[currentYear].length > 0) {
+            selectors.topProceedContainer.html(proceedButtonHtml);
+            selectors.bottomProceedContainer.html(proceedButtonHtml);
         } else {
-            selectors.proceedBtn.hide();
+            selectors.topProceedContainer.empty();
+            selectors.bottomProceedContainer.empty();
         }
     }
     
@@ -191,6 +219,19 @@ const Step1Controller = (function(logger, recognizer) {
         header.on('change', '#year-select', function() {
             currentYear = $(this).val();
             validateAndRender();
+        });
+
+        // --- NEW: Click on row to edit ---
+        container.on('click', '.data-row', function(event) {
+            // Don't trigger if clicking on an interactive element
+            if ($(event.target).is('input, button, textarea, a')) return;
+            
+            const itemId = $(this).attr('id');
+            const item = yearlyData[currentYear].find(d => d.id === itemId);
+            if (item && !item.isEditing) {
+                item.isEditing = true;
+                validateAndRender(); // Re-render to show the edit box
+            }
         });
 
         // --- OK/CANCEL in edit mode ---
@@ -234,7 +275,27 @@ const Step1Controller = (function(logger, recognizer) {
             }
         });
         
-        // ===== NEWLY IMPLEMENTED 'ADD' BUTTON LOGIC =====
+        header.on('click', '#save-btn', function() {
+            if (!currentYear) return;
+            try {
+                const textToSave = yearlyData[currentYear].map(line => line.rawText).join('\n');
+                const blob = new Blob([textToSave], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Step1_data_${currentYear}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                logger.info(`Saved data for year ${currentYear}.`);
+            } catch (e) {
+                logger.error("Failed to save file.", e);
+                alert("Could not save the file due to a browser error.");
+            }
+        });
+
+        // ===== 'ADD' BUTTON LOGIC =====
         header.on('click', '#add-btn', function() {
             const newItem = {
                 id: `item-${Date.now()}-${Math.random()}`,

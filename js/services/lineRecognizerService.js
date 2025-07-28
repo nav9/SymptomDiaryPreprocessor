@@ -21,7 +21,7 @@ const LineRecognizerService = (function(dateParser, logger) {
             return { type: 'time' };
         }
         
-        return { type: 'error', reason: 'Unrecognized format. Expected format: "dd mmm" for dates, or "hh:mm text" for entries.' };
+        return { type: 'error', reason: 'Unrecognized format. Expected: "dd mmm" or "[~]hh:mm text".' };
     }
 
     // THIS IS THE FIX: Return an object containing the function.

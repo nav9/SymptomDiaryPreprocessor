@@ -237,3 +237,24 @@ main {
     align-items: center;
     gap: 10px;
 }
+
+/* --- Custom Button Colors --- */
+.btn-custom-green {
+    background-color: #198754; /* Bootstrap's success green */
+    border-color: #198754;
+    color: white;
+}
+.btn-custom-green:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.btn-custom-grey {
+    background-color: #6c757d; /* Bootstrap's secondary grey */
+    border-color: #6c757d;
+    color: white;
+}
+.btn-custom-grey:hover {
+    background-color: #5c636a;
+    border-color: #565e64;
+}

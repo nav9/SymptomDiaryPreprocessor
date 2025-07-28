@@ -21,15 +21,9 @@ const DateParser = (function() {
         return parseDayMonth(str) !== null && !/(\d{1,2}:\d{2})/.test(str);
     }
     
-    /**
-     * Extracts time parts and text from a string like "09:00 data".
-     * It does NOT validate the time parts, just extracts them.
-     * @param {string} str The input string.
-     * @returns {{hours: string, minutes: string, text: string, error: string|null}|null}
-     */
     function extractTimeAndText(str) {
         // The regex is correct, but the handling of its output needs to be fixed.
-        const match = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(.*)$/);
+        const match = str.match(/^~?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(.*)$/);
         
         if (match) {
             const hours = parseInt(match[1], 10);
