@@ -5,6 +5,27 @@ const DateParser = (function() {
     };
     const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+    function parseDate(str, year) {
+        const dayMonth = parseDayMonth(str);
+        if (dayMonth) {
+            // Create the date in UTC to prevent local timezone from shifting the day.
+            const d = new Date(Date.UTC(year, dayMonth.month, dayMonth.day));
+            // Check for invalid dates like "31 Apr" which JS converts to "1 May"
+            if (d.getUTCMonth() !== dayMonth.month) {
+                return null; // The day was invalid for that month
+            }
+            return d;
+        }
+        
+        // Fallback for other potential date formats that new Date() can handle.
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+            return d;
+        }
+        
+        return null;
+    }
+
     function parseDayMonth(str) {
         const monthMatch = str.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i);
         if (monthMatch) {
@@ -48,9 +69,12 @@ const DateParser = (function() {
         return null;
     }
     
-    // The rest of the functions are correct and do not need changes.
     function buildISOString(year, month, day, hours, minutes) {
-        // ... unchanged ...
+        const h = parseInt(hours, 10);
+        const m = parseInt(minutes, 10);
+        if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return null;
+        const d = new Date(Date.UTC(year, month, day, h, m));
+        return d.toISOString();
     }
     
     function formatDateForDisplay(isoString) {
@@ -67,5 +91,12 @@ const DateParser = (function() {
         } catch (e) {return 'Invalid Date';}
     }
     
-    return { parseDayMonth, isLineJustDate, extractTimeAndText, buildISOString, formatDateForDisplay };
+    return { 
+        parseDate, 
+        parseDayMonth, 
+        isLineJustDate, 
+        extractTimeAndText, 
+        buildISOString, 
+        formatDateForDisplay 
+    };
 })();

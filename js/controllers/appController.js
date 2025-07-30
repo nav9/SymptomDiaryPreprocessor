@@ -2,6 +2,9 @@ const AppController = (function(uiService, step1, step2) {
     function init() {
         logger.info("Initializing Application Controller");
         
+        window.navigationCallback = navigateToStep; // Make it globally accessible
+        navigateToStep(1, true); 
+                
         $('.stepper-item').on('click', function() {
             const targetStep = $(this).data('step');
             navigateToStep(targetStep);

@@ -1,4 +1,3 @@
-
 const Step1Controller = (function(logger, recognizer) {
 
     const selectors = {
@@ -182,7 +181,7 @@ const Step1Controller = (function(logger, recognizer) {
 
     function updateProceedButton(totalErrorCount) {
         const proceedButtonHtml = `
-            <button id="proceed-to-step2" class="btn btn-lg btn-primary">
+            <button id="proceed-to-step2-btn" class="btn btn-lg btn-primary">
                 All Clear! Proceed to Step 2 <i class="fas fa-arrow-right"></i>
             </button>`;
         
@@ -376,7 +375,27 @@ const Step1Controller = (function(logger, recognizer) {
             }
 
             errorElements[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });        
+        });     
+        
+        const topContainer = selectors.topProceedContainer;
+        const bottomContainer = selectors.bottomProceedContainer;
+        $('body').off('click', '#proceed-to-step2-btn').on('click', '#proceed-to-step2-btn', function() {            
+            logger.info("Step 1 complete. Passing data to global state.");
+            
+            // Create the global state object if it doesn't exist
+            if (!window.appState.step1) {
+                window.appState.step1 = {};
+            }
+            // Pass the clean data to the global state
+            window.appState.step1.finalData = yearlyData;
+            
+            // Use the navigation callback provided by the main app controller
+            if (window.navigationCallback) {
+                window.navigationCallback(2);
+            }
+        });                
+
+
     }
 
     return { init };

@@ -1,73 +1,122 @@
-const ValidatorService = (function() {
+/**
+ * @file validatorService.js
+ * @description Performs deep chronological and structural validation on data from Step 1.
+ */
+const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
 
-    function validate(parsedData, dateOrder) {
-        const entries = parsedData.filter(item => item.type === 'entry');
-        // Phase 1: Validate individual entries
-        for (const item of entries) {
-            const h = parseInt(item.timeParts.hours, 10);
-            const m = parseInt(item.timeParts.minutes, 10);
-            if (h > 23 || h < 0 || m > 59 || m < 0 || isNaN(h) || isNaN(m)) {
-                flagError(item, 'invalid_time', `Invalid time value: ${item.timeParts.hours}:${item.timeParts.minutes}`);
-            } else if (item.errorType === 'invalid_time') {
-                // Clear error if it was fixed
-                clearError(item);
-            }
-        }        
+    function validate(structuredLines) {
+        const dateGroups = groupLinesByDate(structuredLines);
+        const dateOrder = detectDateOrder(dateGroups);
         
+        validateDateOrder(dateGroups, dateOrder);
+        validateTimeEntries(dateGroups);
+
+        const validatedData = Object.values(dateGroups).flatMap(group => [group.dateLine, ...group.entries]);
         
-        // Phase 2: Validate order, but only on entries that are valid so far
-        const validEntries = entries.filter(item => !item.errorType && item.isoDate);
-        if (validEntries.length < 2) return parsedData;
+        return { validatedData, dateOrder };
+    }
 
-
-        for (let i = 1; i < validEntries.length; i++) {
-            const currentItem = entries[i];
-            const prevItem = entries[i - 1];
-
-            const currentDate = new Date(currentItem.isoDate);
-            const prevDate = new Date(prevItem.isoDate);
-
-            // Find the original item in the full dataset to attach errors to
-            const originalItemInFullData = parsedData.find(d => d.id === currentItem.id);
-
-            // Check if days are the same
-            if (currentDate.toDateString() === prevDate.toDateString()) {
-                // If days are the same, time MUST be ascending.
-                if (currentDate < prevDate) {
-                    flagError(originalItemInFullData, 'out_of_order_time', 'Time is out of order for this day. Times should always be ascending.');
-                } else {
-                    clearError(originalItemInFullData, 'out_of_order_time');
-                }
+    function groupLinesByDate(lines) {
+        const groups = {};
+        let currentGroup = null;
+        lines.forEach(line => {
+            if (line.type === 'date') {
+                currentGroup = { dateLine: line, entries: [], dateObj: null };
+                groups[line.rawText] = currentGroup;
+            } else if (currentGroup) {
+                currentGroup.entries.push(line);
             } else {
-                // Days are different, so check based on the detected dateOrder.
-                const isOutOfOrder = (dateOrder === 'desc')
-                    ? currentDate > prevDate
-                    : currentDate < prevDate;
-                
-                if (isOutOfOrder) {
-                    flagError(originalItemInFullData, 'out_of_order_date', `Date is out of order. The file is primarily in ${dateOrder}ending order.`);
-                } else {
-                    clearError(originalItemInFullData, 'out_of_order_date');
+                if (!groups['__orphaned__']) {
+                    groups['__orphaned__'] = {
+                        dateLine: { type: 'error', rawText: 'Orphaned Entries', reason: 'These lines appeared before any valid date.' },
+                        entries: []
+                    };
                 }
+                groups['__orphaned__'].entries.push(line);
             }
+        });
+        return groups;
+    }
+    
+    function detectDateOrder(dateGroups) {
+        const dates = Object.values(dateGroups).map(group => {
+            const year = new Date().getFullYear();
+            // This call will now work correctly because dateParser is the correct object.
+            const dateObj = dateParser.parseDate(group.dateLine.rawText, year);
+            group.dateObj = dateObj;
+            return dateObj;
+        }).filter(Boolean);
+
+        if (dates.length < 2) return 'asc';
+        let ascCount = 0, descCount = 0;
+        for (let i = 1; i < dates.length; i++) {
+            if (dates[i] > dates[i-1]) ascCount++;
+            else if (dates[i] < dates[i-1]) descCount++;
         }
-        return parsedData;
+        return ascCount > descCount ? 'asc' : 'desc';
+    }
+    
+    function validateDateOrder(dateGroups, dateOrder) {
+        // This function uses dateParser internally, so the fix above makes it work.
+        const sortedKeys = Object.keys(dateGroups).sort((a, b) => {
+            const dateA = dateGroups[a].dateObj;
+            const dateB = dateGroups[b].dateObj;
+            if (!dateA || !dateB) return 0;
+            return dateA.getTime() - dateB.getTime();
+        });
+
+        const sortedGroupArray = sortedKeys.map(key => dateGroups[key]);
+        const expectedOrder = (dateOrder === 'asc') ? sortedGroupArray : [...sortedGroupArray].reverse();
+
+        Object.values(dateGroups).forEach((group, index) => {
+            if (group.dateLine.rawText !== expectedOrder[index]?.dateLine.rawText) {
+                flagError(group.dateLine, `This date is out of order. This year's dates are mostly in ${dateOrder}ending order.`);
+            } else {
+                clearError(group.dateLine);
+            }
+            if (!group.dateObj) {
+                 flagError(group.dateLine, `Invalid date format or value (e.g., 'Apr 31').`);
+            }
+        });
     }
 
-    function flagError(item, type, msg) {
+    function validateTimeEntries(dateGroups) {
+        // This function uses dateParser internally, so the fix above makes it work.
+        Object.values(dateGroups).forEach(group => {
+            const timeEntries = group.entries.filter(e => e.type === 'time');
+            if (timeEntries.length < 2) return;
+            const sortedEntries = [...timeEntries].sort((a, b) => {
+                const timeA = dateParser.extractTimeAndText(a.rawText);
+                const timeB = dateParser.extractTimeAndText(b.rawText);
+                // Use temp dates for comparison
+                const dateA = new Date(2000, 0, 1, parseInt(timeA.hours, 10), parseInt(timeA.minutes, 10));
+                const dateB = new Date(2000, 0, 1, parseInt(timeB.hours, 10), parseInt(timeB.minutes, 10));
+                return dateA.getTime() - dateB.getTime();
+            });
+            timeEntries.forEach((entry, index) => {
+                if (entry.rawText !== sortedEntries[index].rawText) {
+                    flagError(entry, 'Time is out of order. Times within a day must be ascending.');
+                } else {
+                    clearError(entry);
+                }
+            });
+        });
+    }
+
+    function flagError(item, reason) {
         item.type = 'error';
-        item.errorType = type;
-        item.errorMsg = msg;
+        item.reason = reason;
     }
 
-    function clearError(item, type) {
-        // Only clear the error if it was the specific type we're checking for.
-        if (item.errorType === type) {
-            delete item.errorType;
-            delete item.errorMsg;
-            item.type = 'entry';
-        }
+    function clearError(item) {
+        // This call will now work because lineRecognizerService is correctly injected.
+        const result = lineRecognizerService.recognizeLine(item.rawText, true);
+        item.type = result.type;
+        item.reason = result.reason;
     }
 
-    return { validate };
-})();
+    return { 
+        validate,
+        groupLinesByDate
+    };
+})(DateParser, logger, LineRecognizerService);

@@ -1,381 +1,435 @@
-const Step2Controller = (function(preprocessor, parser, validator, ui, dateParser) {
+/**
+ * @file step2Controller.js
+ * @description Manages Step 2: Chronological Validation.
+ */
+const Step2Controller = (function(logger, validator, dateParser, ui) {
 
-    let state = null; // Local reference to appState.data.step2
-    let currentFile = null;
+    const selectors = {
+        stickyHeader: $('#step2-sticky-header'), // Assuming new IDs for this step
+        dataContainer: $('#step2-data-container'),
+        topProceedContainer: $('#step2-top-proceed'),
+        bottomProceedContainer: $('#step2-bottom-proceed')
+    };
+
+    const step2Data = {}; // { "2024": { data: [...], dateOrder: 'asc'}, "2023": ... }
+    let currentYear = null;
 
     function init() {
-        if (!appState.data.step1.rawFiles.length) {
-            $('#step2-data-container').html('<div class="alert alert-warning">Please load data in Step 1 first.</div>');
+        logger.info("Initializing Step 2 Controller.");
+        
+        // This is where data is passed from Step 1
+        const step1CleanedData = getStep1Data();
+        if (Object.keys(step1CleanedData).length === 0) {
+            selectors.dataContainer.html('<div class="alert alert-warning">No data from Step 1. Please go back and load data.</div>');
             return;
         }
 
-        ui.showLoading('Preprocessing and validating files...');
-        
-        // This setTimeout simulates an async operation and allows the UI to update
+        ui.showLoading("Analyzing date and time order...");
         setTimeout(() => {
             try {
-                if (Object.keys(appState.data.step2.fileData).length === 0) {
-                     appState.data.step1.rawFiles.forEach(file => {
-                        // NEW PROCESSING PIPELINE
-                        const year = extractYearFromFile(file.fileName) || new Date().getFullYear();
-                        
-                        // 1. Preprocess
-                        const { transformedText, dateOrder } = preprocessor.transform(file.content, year);
-                        
-                        // 2. Parse the cleaner text
-                        let parsed = parser.parse(transformedText);
-                        
-                        // 3. Validate using the detected order
-                        let validated = validator.validate(parsed, dateOrder);
-
-                        // Store the final, validated data
-                        appState.data.step2.fileData[file.fileName] = { 
-                            data: validated, 
-                            dateOrder: dateOrder 
-                        };
+                if (Object.keys(step2Data).length === 0) {
+                     Object.entries(step1CleanedData).forEach(([year, lines]) => {
+                        step2Data[year] = { data: JSON.parse(JSON.stringify(lines)), dateOrder: 'tbd' };
                     });
                 }
-                state = appState.data.step2;
-                currentFile = Object.keys(state.fileData)[0];
-                
-                render();
+                currentYear = Object.keys(step2Data)[0];
+                validateAndRender();
                 attachEventListeners();
-
-            } catch(e) {
-                logger.error("Failed to initialize Step 2", e);
-                $('#step2-data-container').html('<div class="alert alert-danger">A critical error occurred during data processing.</div>');
+            } catch (e) {
+                logger.error("Error during Step 2 initialization", e);
             } finally {
                 ui.hideLoading();
             }
         }, 50);
     }
 
-    /**
-     * Extracts time and text from a string like "HH:mm data".
-     * @param {string} str The input string.
-     * @returns {Object|null} An object with hours, minutes, seconds, and text, or null.
-     */
-    function extractTimeAndText(str) {
-        // Updated Regex to be more flexible with spacing
-        const match = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(.*)/);
-        if(match) {
-            return {
-                hours: parseInt(match[1], 10),
-                minutes: parseInt(match[2], 10),
-                seconds: match[3] ? parseInt(match[3], 10) : 0,
-                text: match[4].trim()
-            };
+    function getStep1Data() {
+        if (window.appState && window.appState.step1 && window.appState.step1.finalData) {
+            return window.appState.step1.finalData;
         }
-        return null;
+        logger.warn("Could not find data from Step 1 in global state.");
+        return {};
     }
 
-    
-
-    /**
-     * Extracts a 4-digit year from a filename, or returns null.
-     * @param {string} fileName
-     * @returns {number|null}
-     */
-        function extractYearFromFile(fileName) {
-            const match = fileName.match(/\d{4}/);
-            return match ? parseInt(match[0], 10) : null;
-        }
-
-        function revalidateAndRender(scrollToId = null) {
-            if (!currentFile || !state.fileData[currentFile]) return; // Defensive check
-            ui.showLoading(`Re-validating ${currentFile}...`);
-            
-            setTimeout(() => {
-                try {
-                    let currentFileDataObject = state.fileData[currentFile];
-                    if (!currentFileDataObject || !currentFileDataObject.data) {
-                        logger.error("Data structure is invalid for re-validation.", currentFileDataObject);
-                        return;
-                    }
-                    const currentDataArray = currentFileDataObject.data;
-                    const dateOrder = currentFileDataObject.dateOrder;
-    
-                    const combinedText = currentDataArray.map(d => d.originalLine).join('\n');
-                    
-                    let parsed = parser.parse(combinedText);
-                    let validated = validator.validate(parsed, dateOrder);
-    
-                    state.fileData[currentFile].data = validated;
-                    render();
-    
-                    if(scrollToId) {
-                        const el = document.getElementById(scrollToId);
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                } catch (e) {
-                    logger.error('Error during re-validation', e);
-                } finally {
-                    ui.hideLoading();
-                }
-            }, 50);
-        }
-
-    function render() {
-        renderStickyHeader();
-        renderDataContainer();
-        appState.isDirty = true; // Any render implies potential changes
-    }
-    
-    function renderStickyHeader() {
-        const files = Object.keys(state.fileData);
-        if (files.length === 0) return;
-
-        const errorCount = state.fileData[currentFile].data.filter(item => item.type === 'error').length;
-        const nextStepDisabled = errorCount > 0 ? 'disabled' : '';
-
-        const options = files.map(f => `<option value="${f}" ${f === currentFile ? 'selected' : ''}>${f}</option>`).join('');
-
-        const headerHtml = `
-        <div class="row g-2 align-items-center">
-            <div class="col-auto">
-                <select id="step2-year-select" class="form-select form-select-sm">${options}</select>
-            </div>
-            <div class="col-auto">
-                <span class="badge bg-${errorCount > 0 ? 'danger' : 'success'}">${errorCount} issues require attention</span>
-            </div>
-                <div class="col">
-                    <button class="btn btn-sm btn-outline-secondary" id="step2-prev-error"><i class="fas fa-arrow-up"></i> Prev</button>
-                    <button class="btn btn-sm btn-outline-secondary" id="step2-next-error"><i class="fas fa-arrow-down"></i> Next</button>
-                </div>
-                <div class="col-auto">
-                    <button class="btn btn-sm btn-outline-primary" id="step2-add-line"><i class="fas fa-plus"></i> Add</button>
-                    <button class="btn btn-sm btn-outline-warning" id="step2-edit-selection"><i class="fas fa-edit"></i> Edit</button>
-                    <button class="btn btn-sm btn-outline-danger" id="step2-delete-selection"><i class="fas fa-trash"></i> Delete</button>
-                </div>
-                <div class="col-auto">
-                <button id="step2-next-step" class="btn btn-sm btn-primary" ${nextStepDisabled}>
-                    Next Step <i class="fas fa-arrow-right"></i>
-                </button>
-            </div>
-        </div>`;
-    $('#step2-sticky-header').html(headerHtml);
-    }
-
-    function renderDataContainer() {
-        const container = $('#step2-data-container');
-        container.empty();
-        if (!currentFile || !state.fileData[currentFile] || !state.fileData[currentFile].data) return;
+    function validateAndRender() {
+        if (!currentYear) return;
+        const { validatedData, dateOrder } = validator.validate(step2Data[currentYear].data);
+        step2Data[currentYear].data = validatedData;
+        step2Data[currentYear].dateOrder = dateOrder;
         
-        state.fileData[currentFile].data.forEach(item => {
-            container.append(renderRow(item));
+        const totalErrorCount = Object.values(step2Data).flatMap(y => y.data).filter(l => l.type === 'error').length;
+        const currentYearErrorCount = step2Data[currentYear].data.filter(l => l.type === 'error').length;
+        
+        renderStickyHeader(currentYearErrorCount, totalErrorCount);
+        renderDataContainer();
+        updateProceedButton(totalErrorCount);
+    }
+
+    function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
+        const years = Object.keys(step2Data).sort();
+        const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+        const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
+        const errorIds = step2Data[currentYear].data.filter(l => l.type === 'error').map(l => l.id);
+        const nextPrevDisabled = errorIds.length < 2 ? 'disabled' : '';
+        
+        const headerHtml = `
+            <div class="row g-2 align-items-center">
+                <div class="col-auto">
+                    <label for="step2-year-select" class="form-label mb-0">Year:</label>
+                    <select id="step2-year-select" class="form-select form-select-sm w-auto">${options}</select>
+                </div>
+                <div class="col-auto">
+                    <span class="badge ${errorBadgeClass}">
+                        ${currentYearErrorCount} issues this year / ${totalErrorCount} total
+                    </span>
+                </div>
+                <div class="col">
+                    <button id="step2-prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
+                    <button id="step2-next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
+                </div>
+                <div class="col-auto ms-auto">
+                    <button id="step2-move-up-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Up"><i class="fas fa-chevron-up"></i></button>
+                    <button id="step2-move-down-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Down"><i class="fas fa-chevron-down"></i></button>
+                    <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button>
+                    <button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
+                    <button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+            <div id="step2-top-proceed" class="text-center mt-2"></div>`;
+        selectors.stickyHeader.html(headerHtml);
+    }
+    
+    function renderDataContainer() {
+        selectors.dataContainer.empty();
+        if (!step2Data[currentYear]) return;
+        step2Data[currentYear].data.forEach(item => {
+            selectors.dataContainer.append(renderRow(item));
         });
     }
 
     function renderRow(item) {
         let contentHtml = '';
-        const isError = item.type === 'error';
-        const isEditing = $(`#${item.id}`).find('textarea').length > 0;
-        const rowClass = isError || isEditing ? 'row-error' : '';
+        let rowClass = item.type === 'error' ? 'row-error' : '';
 
-        // If the row is an error or already in edit mode, render the editable textarea.
-        if (isError || isEditing) {
+        // If the item is currently being edited, force it into an error-style editable view
+        if (item.isEditing) {
+            rowClass = 'row-error';
             contentHtml = `
                 <div class="row-content w-100">
-                    <textarea id="textarea-${item.id}" class="editable-textarea" rows="2">${_getEditableText(item)}</textarea>
-                    <div class="d-flex justify-content-between align-items-center mt-1">
-                        <span class="error-message">${item.errorMsg || ''}</span>
-                        <div>
-                            <button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button>
-                            <button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button>
-                        </div>
+                    <textarea class="editable-textarea" rows="1">${item.rawText}</textarea>
+                    <div class="d-flex justify-content-end align-items-center mt-1">
+                        <button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button>
+                        <button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button>
                     </div>
                 </div>`;
         } else {
-            // Render the normal, read-only view.
-            let innerContent = '';
-            if (item.type === 'entry') {
-                const displayDate = dateParser.formatDateForDisplay(item.isoDate);
-                innerContent = `
-                    <div class="d-flex w-100 align-items-center">
-                        <span class="timestamp me-3 text-nowrap">${displayDate}</span>
-                        <span class="phrases">${item.phrases.join(' • ')}</span>
-                    </div>`;
-            } else if (item.type === 'comment') {
-                innerContent = `<div class="note-content fst-italic text-body-secondary">${item.originalLine}</div>`;
-            }
-            contentHtml = `<div class="row-content w-100">${innerContent}</div>`;
+            // Standard read-only view
+            let lineClass = 'line-text';
+            if (item.type === 'comment') lineClass += ' comment-text';
+            if (item.type === 'date') lineClass += ' date-text';
+
+            contentHtml = `
+                <div class="row-content w-100">
+                    <span class="${lineClass}">${item.rawText || ' '}</span>
+                    ${item.type === 'error' ? `<div class="error-message">${item.reason}</div>` : ''}
+                </div>`;
         }
 
         return `
             <div id="${item.id}" class="list-group-item data-row ${rowClass}">
                 <input class="form-check-input" type="checkbox" data-id="${item.id}">
-                <i class="fas fa-grip-vertical drag-handle" title="Drag to re-order"></i>
                 ${contentHtml}
             </div>`;
     }
     
-    function _getEditableText(item) {
-        if (item.type === 'entry') {
-            // NEW: Build from components, not a Date object.
-            const time = `${item.timeParts.hours}:${item.timeParts.minutes}`;
-            const text = item.phrases.join(', ');
-            return `${time} ${text}`;
+    
+    function updateProceedButton(totalErrorCount) {
+        const proceedBtn = `<button id="proceed-to-step3-btn" class="btn btn-lg btn-primary">Finalize & Proceed to Step 3 <i class="fas fa-arrow-right"></i></button>`;
+        if (totalErrorCount === 0 && Object.keys(step2Data).length > 0) {
+            selectors.topProceedContainer.html(proceedBtn);
+            selectors.bottomProceedContainer.html(proceedBtn);
+        } else {
+            selectors.topProceedContainer.empty();
+            selectors.bottomProceedContainer.empty();
         }
-        return item.originalLine;
     }
 
-    function makeRowEditable(itemId) {
-        const item = state.fileData[currentFile].data.find(d => d.id === itemId);
-        if (!item) return;
+    /**
+     * Final transformation: Sorts data, creates ISO timestamps, removes date/comment lines,
+     * and prepares the data structure for Step 3.
+     */
+    function finalizeData() {
+        ui.showLoading("Finalizing data... This may take a moment.");
 
-        const rowElement = $(`#${itemId}`);
-        if (rowElement.find('textarea').length > 0) return; // Already editing
+        // Use a cancellable timeout to allow the UI to update with the loading modal
+        const processId = setTimeout(() => {
+            try {
+                const step3Data = {}; // The new data structure for all subsequent steps
 
-        // Re-render the specific row to switch it to edit mode
-        rowElement.replaceWith(renderRow(item));
+                Object.keys(step2Data).forEach(year => {
+                    const yearObject = step2Data[year];
+                    const dateOrder = yearObject.dateOrder;
+                    const yearNumber = parseInt(year, 10);
+
+                    // 1. Group again to ensure structure is correct after all edits
+                    const dateGroups = validator.groupLinesByDate(yearObject.data);
+
+                    // 2. Sort the date groups chronologically based on the detected order
+                    const sortedGroups = Object.values(dateGroups)
+                        .filter(g => g.dateObj) // Filter out any groups that might be invalid
+                        .sort((a, b) => {
+                            const order = (dateOrder === 'asc' ? 1 : -1);
+                            // Compare the time value of the date objects
+                            return (a.dateObj.getTime() - b.dateObj.getTime()) * order;
+                        });
+
+                    // 3. Flatten, create timestamps, and filter out non-time entries
+                    const finalEntries = [];
+                    sortedGroups.forEach(group => {
+                        // The date object is already validated, so we can trust it
+                        const dateObj = group.dateObj;
+
+                        // Get all time and comment entries for this date
+                        const entriesForDate = group.entries.filter(e => e.type === 'time' || e.type === 'comment');
+
+                        // Sort times within the group. Comments will be interspersed.
+                        const sortedEntries = entriesForDate.sort((a, b) => {
+                            const timeAData = dateParser.extractTimeAndText(a.rawText);
+                            const timeBData = dateParser.extractTimeAndText(b.rawText);
+
+                            // Handle cases where one or both might be a comment
+                            if (!timeAData && !timeBData) return 0; // two comments
+                            if (!timeAData) return -1; // comment comes before time
+                            if (!timeBData) return 1;  // time comes after comment
+
+                            const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
+                            const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
+                            return timeA - timeB;
+                        });
+
+                        // Process each sorted entry for the day
+                        sortedEntries.forEach(entry => {
+                            if (entry.type === 'time') {
+                                const timeData = dateParser.extractTimeAndText(entry.rawText);
+                                if (timeData && !timeData.error) {
+                                    // Build the final, definitive ISO timestamp in UTC
+                                    const isoDate = dateParser.buildISOString(
+                                        dateObj.getUTCFullYear(),
+                                        dateObj.getUTCMonth(),
+                                        dateObj.getUTCDate(),
+                                        timeData.hours,
+                                        timeData.minutes
+                                    );
+                                    
+                                    // The final object for Step 3 has a simpler structure
+                                    finalEntries.push({
+                                        id: entry.id,
+                                        isoDate: isoDate,
+                                        phrases: entry.rawText.replace(/^~?\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*/, '').split(/[.,]/).map(p=>p.trim()).filter(Boolean),
+                                        rawText: entry.rawText
+                                    });
+                                }
+                            } else if (entry.type === 'comment') {
+                                // For now, we can choose to include comments with the previous entry's timestamp
+                                // or assign them a special status. Let's add them with the date's timestamp.
+                                finalEntries.push({
+                                    id: entry.id,
+                                    isoDate: dateObj.toISOString(), // Assigns comment to midnight UTC of that day
+                                    phrases: [entry.rawText], // The whole comment is a single phrase
+                                    isComment: true,
+                                    rawText: entry.rawText
+                                });
+                            }
+                        });
+                    });
+                    
+                    // Assign the fully processed array to the new data structure
+                    step3Data[year] = finalEntries;
+                });
+                
+                // Pass the finalized data to the global state for the next step to consume
+                window.appState.step2 = { finalData: step3Data };
+
+                ui.hideLoading();
+                logger.info("Data finalized and ready for Step 3.");
+                alert("Data has been finalized successfully! Proceeding to Step 3 (to be built).");
+                
+                // In a real scenario, you would navigate now:
+                // if (window.navigationCallback) window.navigationCallback(3);
+
+            } catch(e) {
+                ui.hideLoading();
+                logger.error("A critical error occurred during data finalization.", e);
+                alert("An error occurred during finalization. Please check the console for details.");
+            }
+        }, 100); // 100ms timeout
     }
 
     function attachEventListeners() {
-        const container = $('#step-2-content');
-        container.off(); // Clear all previous listeners
+        // All listeners from Step 1 (OK, Cancel, Add, Edit, Delete, Checkbox)
+        // are reused here, but with Step 2's selectors.
+        const header = selectors.stickyHeader;
+        const container = selectors.dataContainer;        
+        // Clear any previously attached delegated listeners to prevent duplicates
+        header.off();
+        container.off();
+        $('body').off('click', '#proceed-to-step3-btn');
+        
+        header.on('change', '#step2-year-select', function() {
+            currentYear = $(this).val();
+            validateAndRender();
+        });
 
-        // --- OK BUTTON (Save changes from textarea) ---
+        // OK button (when a row is in edit mode)
         container.on('click', '.ok-btn', function() {
             const itemId = $(this).data('id');
-            const textareaValue = $(`#${itemId}`).find('textarea').val();
-            const itemInState = state.fileData[currentFile].data.find(d => d.id === itemId);
-
-            if (!itemInState) return;
-
-            // This is the core logic: Rebuild the machine-readable 'originalLine'
-            // from the human-friendly text in the textarea.
-
-            // If it was a comment, the update is simple.
-            if (textareaValue.startsWith('//') || textareaValue.startsWith('#')) {
-                 itemInState.originalLine = textareaValue;
-            } else {
-                // For entries, we need to parse the time and prepend the full date.
-                const newTimeData = dateParser.extractTimeAndText(textareaValue);
-                
-                if (newTimeData) {
-                    // We have new time parts, combine them with old date parts.
-                    const { year, month, day } = itemInState.dateParts;
-                    const { hours, minutes, text } = newTimeData;
-                    
-                    // Reconstruct the machine-readable line for the parser.
-                    itemInState.originalLine = `[${year}-${month}-${day} ${hours}:${minutes}] ${text}`;
-                } else {
-                    // The user entered text that doesn't look like "HH:mm text".
-                    // Treat the entire entry as the new originalLine and let the
-                    // validator flag it as an error.
-                    itemInState.originalLine = textareaValue;
-                }
+            const item = step2Data[currentYear].data.find(d => d.id === itemId);
+            if (item) {
+                // Get the edited text and update the state
+                item.rawText = $(this).closest('.row-content').find('textarea').val();
+                item.isEditing = false; // Exit edit mode
             }
-
-            revalidateAndRender(itemId);
+            validateAndRender(); // Re-validate and render the entire view
         });
 
-        // --- CANCEL BUTTON (Discards changes) ---
+        // CANCEL button (when a row is in edit mode)
         container.on('click', '.cancel-btn', function() {
-            render(); // Just re-render the view from the unmodified state.
-        });
-
-        // --- YEAR/FILE SELECTOR ---
-        container.on('change', '#step2-year-select', function() {
-            currentFile = $(this).val();
-            render();
-        });
-
-        // --- DELETE SELECTED ---
-        container.on('click', '#step2-delete-selection', function() {
-            const checkedIds = new Set();
-            $('#step2-data-container input:checked').each(function() {
-                checkedIds.add($(this).data('id'));
-            });
-
-            if (checkedIds.size === 0) {
-                alert("Please select one or more lines to delete.");
-                return;
+            const itemId = $(this).data('id');
+            const item = step2Data[currentYear].data.find(d => d.id === itemId);
+            if (item) {
+                item.isEditing = false; // Just exit edit mode, discarding changes
             }
+            validateAndRender(); // Re-render to show the original state
+        });        
 
-            if (confirm(`Are you sure you want to delete ${checkedIds.size} line(s)?`)) {
-                state.fileData[currentFile].data = state.fileData[currentFile].data.filter(item => !checkedIds.has(item.id));
-                revalidateAndRender();
+        // --- NEW: Click on row to edit ---
+        container.on('click', '.data-row', function(event) {
+            // Don't trigger if clicking on an interactive element
+            if ($(event.target).is('input, button, textarea, a')) return;
+            
+            const itemId = $(this).attr('id');
+            const item = step2Data[currentYear].find(d => d.id === itemId);
+            if (item && !item.isEditing) {
+                item.isEditing = true;
+                validateAndRender(); // Re-render to show the edit box
             }
         });
 
-        // --- EDIT SELECTED ---
-        container.on('click', '#step2-edit-selection', function() {
-            const checkedIds = [];
-            $('#step2-data-container input:checked').each(function() {
-                checkedIds.push($(this).data('id'));
-            });
-
-            if (checkedIds.length === 0) {
-                alert("Please select one or more lines to edit.");
-                return;
-            }
-            checkedIds.forEach(id => makeRowEditable(id));
-        });
-
-        // --- ADD NEW LINE ---
-        container.on('click', '#step2-add-line', function() {
+        // ADD button
+        header.on('click', '#step2-add-btn', function() {
             const newItem = {
                 id: `item-${Date.now()}-${Math.random()}`,
-                type: 'error',
-                errorType: 'new_item',
-                errorMsg: 'New line. Please enter data.',
-                originalLine: ''
+                rawText: '',
+                isEditing: true, // Start in edit mode immediately
+                type: 'new'
             };
-
-            const checkedCheckboxes = $('#step2-data-container input:checked');
-            let insertIndex = 0; // Default to top
-
+            const checkedCheckboxes = container.find('input:checked');
+            let insertIndex = step2Data[currentYear].data.length; // Default to end
             if (checkedCheckboxes.length > 0) {
-                const lastSelectedId = checkedCheckboxes.last().data('id');
-                const lastSelectedIndex = state.fileData[currentFile].data.findIndex(d => d.id === lastSelectedId);
-                if (lastSelectedIndex !== -1) {
-                    insertIndex = lastSelectedIndex + 1;
-                }
+                const firstSelectedId = checkedCheckboxes.first().data('id');
+                const foundIndex = step2Data[currentYear].data.findIndex(d => d.id === firstSelectedId);
+                if (foundIndex !== -1) insertIndex = foundIndex + 1;
             }
-
-            state.fileData[currentFile].data.splice(insertIndex, 0, newItem);
-            render(); // Render to show the new editable row
-            document.getElementById(newItem.id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+            step2Data[currentYear].data.splice(insertIndex, 0, newItem);
+            validateAndRender();
+            const newElement = document.getElementById(newItem.id);
+            if (newElement) {
+                newElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                $(newElement).find('textarea').focus();
+            }
         });
 
-        // --- NEXT/PREV ERROR NAVIGATION ---
-        container.on('click', '#step2-next-error, #step2-prev-error', function() {
-            const isNext = $(this).attr('id') === 'step2-next-error';
-            const errorRows = $('#step2-data-container .row-error').get();
-            if (errorRows.length === 0) return;
-
-            // Find the first error row that is currently in the viewport
-            let currentVisibleIndex = -1;
-            for (let i = 0; i < errorRows.length; i++) {
-                const rect = errorRows[i].getBoundingClientRect();
-                if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
-                    currentVisibleIndex = i;
-                    break;
-                }
-            }
-
-            let nextIndex;
-            if (isNext) {
-                nextIndex = (currentVisibleIndex === -1 || currentVisibleIndex === errorRows.length - 1) ? 0 : currentVisibleIndex + 1;
-            } else { // isPrev
-                nextIndex = (currentVisibleIndex === -1 || currentVisibleIndex === 0) ? errorRows.length - 1 : currentVisibleIndex - 1;
-            }
-            
-            errorRows[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-
-         // --- NEXT STEP BUTTON ---
-        container.on('click', '#step2-next-step', function() {
+        // EDIT button
+        header.on('click', '#step2-edit-btn', function() {
             if ($(this).is(':disabled')) return;
-            // The main app controller will handle the navigation logic
-            // For now, we can log it.
-            logger.info("Proceeding to Step 3.");
-            alert("Proceeding to Step 3 (to be built)!");
+            container.find('input:checked').each(function() {
+                const itemId = $(this).data('id');
+                const item = step2Data[currentYear].data.find(d => d.id === itemId);
+                if (item) item.isEditing = true;
+            });
+            validateAndRender();
+            header.find('#step2-edit-btn, #step2-delete-btn, #step2-move-up-btn, #step2-move-down-btn').prop('disabled', true);
         });
+
+        // DELETE button
+        header.on('click', '#step2-delete-btn', function() {
+            if ($(this).is(':disabled')) return;
+            const checkedIds = new Set();
+            container.find('input:checked').each(function() { checkedIds.add($(this).data('id')); });
+            if (confirm(`Are you sure you want to permanently delete ${checkedIds.size} line(s)?`)) {
+                step2Data[currentYear].data = step2Data[currentYear].data.filter(item => !checkedIds.has(item.id));
+                validateAndRender();
+            }
+        });        
+
+        header.on('click', '#step2-move-up-btn, #step2-move-down-btn', function() {
+            if ($(this).is(':disabled')) return;
+            const isMoveUp = $(this).attr('id') === 'step2-move-up-btn';
+            const currentData = step2Data[currentYear].data;
+            
+            // Get the indices of all checked items
+            const checkedIndices = [];
+            container.find('input:checked').each(function() {
+                const itemId = $(this).data('id');
+                const index = currentData.findIndex(d => d.id === itemId);
+                if (index !== -1) checkedIndices.push(index);
+            });
+
+            // Sort indices to move them correctly as a block
+            checkedIndices.sort((a,b) => a - b);
+
+            if (isMoveUp) {
+                // For moving up, iterate forward
+                for (const index of checkedIndices) {
+                    if (index > 0) {
+                        [currentData[index - 1], currentData[index]] = [currentData[index], currentData[index - 1]];
+                    }
+                }
+            } else { // Move Down
+                // For moving down, iterate backwards to prevent items from leap-frogging
+                for (let i = checkedIndices.length - 1; i >= 0; i--) {
+                    const index = checkedIndices[i];
+                    if (index < currentData.length - 1) {
+                         [currentData[index], currentData[index + 1]] = [currentData[index + 1], currentData[index]];
+                    }
+                }
+            }
+            validateAndRender();
+        });
+
+        // NEXT/PREV ERROR buttons
+        header.on('click', '#step2-next-error-btn, #step2-prev-error-btn', function() {
+            if ($(this).is(':disabled')) return;
+            const isNext = $(this).attr('id') === 'step2-next-error-btn';
+            const errorElements = container.find('.row-error').get();
+            if (errorElements.length === 0) return;
+            let currentVisibleIndex = -1;
+            for (let i = 0; i < errorElements.length; i++) {
+                const rect = errorElements[i].getBoundingClientRect();
+                if (rect.top >= 0 && rect.top <= window.innerHeight) {
+                    currentVisibleIndex = i; break;
+                }
+            }
+            let targetIndex;
+            if (isNext) {
+                targetIndex = currentVisibleIndex > -1 ? (currentVisibleIndex + 1) % errorElements.length : 0;
+            } else {
+                targetIndex = currentVisibleIndex > -1 ? (currentVisibleIndex - 1 + errorElements.length) % errorElements.length : errorElements.length - 1;
+            }
+            errorElements[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });        
+
+        // CHECKBOX handling to enable/disable buttons
+        container.on('change', 'input[type="checkbox"]', function() {
+            const checkedCount = container.find('input:checked').length;
+            header.find('#step2-edit-btn, #step2-delete-btn').prop('disabled', checkedCount === 0);
+            header.find('#step2-move-up-btn, #step2-move-down-btn').prop('disabled', checkedCount === 0);
+        });
+
+        // NEW: Proceed button listener
+        $('body').on('click', '#proceed-to-step3-btn', finalizeData);
     }
 
     return { init };
 
-// Pass the new dateParser dependency
-})(PreprocessorService, ParserService, ValidatorService, uiService, DateParser);
+})(logger, ValidatorService, DateParser, uiService);
