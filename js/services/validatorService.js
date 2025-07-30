@@ -1,12 +1,29 @@
 const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
 
-    function validate(structuredLines) {
-        const dateGroups = groupLinesByDate(structuredLines);
-        const dateOrder = detectDateOrder(dateGroups);
+    function validate(lines) {
+        // STEP 1: RECOGNIZE and CLASSIFY every line from its raw text.
+        let lastDateIsValid = false;
+        const recognizedLines = lines.map(line => {
+            const result = lineRecognizerService.recognizeLine(line.rawText, lastDateIsValid);
+            // Update the line object with its true type
+            line.type = result.type;
+            line.reason = result.reason || '';
+            
+            if (line.type === 'date') lastDateIsValid = true;
+            else if (line.type !== 'time' && line.type !== 'comment') lastDateIsValid = false;
+            
+            return line;
+        });
+
+        // STEP 2: GROUP the now-classified lines.
+        const dateGroups = groupLinesByDate(recognizedLines);
         
+        // STEP 3: VALIDATE the groups for chronological order.
+        const dateOrder = detectDateOrder(dateGroups);
         validateDateOrder(dateGroups, dateOrder);
         validateTimeEntries(dateGroups);
 
+        // STEP 4: FLATTEN the groups back into a single array for rendering.
         const validatedData = Object.values(dateGroups).flatMap(group => [group.dateLine, ...group.entries]);
         
         return { validatedData, dateOrder };
@@ -19,38 +36,23 @@ const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
         lines.forEach(line => {
             if (line.type === 'date') {
                 currentGroup = { dateLine: line, entries: [], dateObj: null };
-                groups[line.rawText] = currentGroup;
+                // Use the unique ID for the key to prevent duplicates
+                groups[line.id] = currentGroup;
             } else if (currentGroup) {
-                // Any line that's not a date just gets added to the current group.
                 currentGroup.entries.push(line);
+            } else {
+                // This line is an orphan. The controller will handle auto-correcting it.
+                if (!groups['__orphaned__']) {
+                    groups['__orphaned__'] = {
+                        dateLine: { type: 'header', rawText: 'Orphaned Entries (No Associated Date)', id: 'orphan-header' },
+                        entries: []
+                    };
+                }
+                groups['__orphaned__'].entries.push(line);
             }
-            // There is no 'else' case, because orphans are now comments
-            // and will be correctly added to the first valid date group.
         });
         return groups;
-    }    
-    // function groupLinesByDate(lines) {
-    //     const groups = {};
-    //     let currentGroup = null;
-    //     lines.forEach(line => {
-    //         if (line.type === 'date') {
-    //             currentGroup = { dateLine: line, entries: [], dateObj: null };
-    //             groups[line.rawText] = currentGroup;
-    //         } else if (currentGroup) {
-    //             currentGroup.entries.push(line);
-    //         } else {
-    //             flagError(line, "This line appears before any valid date (e.g., '21 jul').");
-    //             if (!groups['__orphaned__']) {
-    //                 groups['__orphaned__'] = {
-    //                     dateLine: { type: 'header', rawText: 'Orphaned Entries (No Associated Date)', id: 'orphan-header' },
-    //                     entries: []
-    //                 };
-    //             }
-    //             groups['__orphaned__'].entries.push(line);
-    //         }
-    //     });
-    //     return groups;
-    // }
+    }
     
     function detectDateOrder(dateGroups) {
         const dates = Object.values(dateGroups).map(group => {

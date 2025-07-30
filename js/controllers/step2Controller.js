@@ -156,10 +156,6 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
         }
     }
 
-    /**
-     * Final transformation: Sorts data, creates ISO timestamps, removes date/comment lines,
-     * and prepares the data structure for Step 3.
-     */
     function finalizeData() {
         ui.showLoading("Finalizing data... This may take a moment.");
 
@@ -297,21 +293,8 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                     lastDateIsValid = true;
                 }
             }            
-            // const result = lineRecognizerService.recognizeLine(newText, lastDateIsValid);
-            
-            // // If the input is invalid/unrecognized, convert it to a comment.
-            // if (result.type === 'error') {
-            //     item.rawText = `// ${newText}`;
-            //     logger.info(`Auto-correcting unrecognized line to comment: "${newText}"`);
-            // } else {
-                item.rawText = newText; // Otherwise, save it as is.
-            // }
+            item.rawText = newText; // Otherwise, save it as is.
             item.isEditing = false;            
-            // if (item) {
-            //     // Get the edited text and update the state
-            //     item.rawText = $(this).closest('.row-content').find('textarea').val();
-            //     item.isEditing = false; // Exit edit mode
-            // }
             validateAndRender(); // Re-validate and render the entire view
         });
 
