@@ -1,8 +1,4 @@
-/**
- * @file step2Controller.js
- * @description Manages Step 2: Chronological Validation.
- */
-const Step2Controller = (function(logger, validator, dateParser, ui) {
+const Step2Controller = (function(logger, validator, dateParser, ui, lineRecognizerService) {
 
     const selectors = {
         stickyHeader: $('#step2-sticky-header'), // Assuming new IDs for this step
@@ -127,6 +123,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             let lineClass = 'line-text';
             if (item.type === 'comment') lineClass += ' comment-text';
             if (item.type === 'date') lineClass += ' date-text';
+            if (item.type === 'header') lineClass += ' date-text text-danger';
 
             contentHtml = `
                 <div class="row-content w-100">
@@ -135,11 +132,16 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
                 </div>`;
         }
 
-        return `
-            <div id="${item.id}" class="list-group-item data-row ${rowClass}">
-                <input class="form-check-input" type="checkbox" data-id="${item.id}">
-                ${contentHtml}
-            </div>`;
+    //  Disable the checkbox for the non-interactive orphan header
+    const checkboxHtml = item.type === 'header' 
+        ? `<input class="form-check-input" type="checkbox" data-id="${item.id}" disabled>`
+        : `<input class="form-check-input" type="checkbox" data-id="${item.id}">`;
+
+    return `
+        <div id="${item.id}" class="list-group-item data-row ${rowClass}">
+            ${checkboxHtml}
+            ${contentHtml}
+        </div>`;
     }
     
     
@@ -284,11 +286,32 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         container.on('click', '.ok-btn', function() {
             const itemId = $(this).data('id');
             const item = step2Data[currentYear].data.find(d => d.id === itemId);
-            if (item) {
-                // Get the edited text and update the state
-                item.rawText = $(this).closest('.row-content').find('textarea').val();
-                item.isEditing = false; // Exit edit mode
-            }
+            if (!item) return;
+            const newText = $(this).closest('.row-content').find('textarea').val().trim();
+            // Before saving, recognize the user's input.
+            const index = step2Data[currentYear].data.findIndex(d => d.id === itemId);
+            let lastDateIsValid = false;
+            if (index > 0) {
+                const prevItem = step2Data[currentYear].data[index - 1];
+                if (prevItem.type === 'date' || prevItem.type === 'time') {
+                    lastDateIsValid = true;
+                }
+            }            
+            // const result = lineRecognizerService.recognizeLine(newText, lastDateIsValid);
+            
+            // // If the input is invalid/unrecognized, convert it to a comment.
+            // if (result.type === 'error') {
+            //     item.rawText = `// ${newText}`;
+            //     logger.info(`Auto-correcting unrecognized line to comment: "${newText}"`);
+            // } else {
+                item.rawText = newText; // Otherwise, save it as is.
+            // }
+            item.isEditing = false;            
+            // if (item) {
+            //     // Get the edited text and update the state
+            //     item.rawText = $(this).closest('.row-content').find('textarea').val();
+            //     item.isEditing = false; // Exit edit mode
+            // }
             validateAndRender(); // Re-validate and render the entire view
         });
 
@@ -302,16 +325,19 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             validateAndRender(); // Re-render to show the original state
         });        
 
-        // --- NEW: Click on row to edit ---
+        // This goes inside attachEventListeners in step2Controller.js
         container.on('click', '.data-row', function(event) {
-            // Don't trigger if clicking on an interactive element
-            if ($(event.target).is('input, button, textarea, a')) return;
-            
+            // Prevent triggering when clicking an interactive element within the row
+            if ($(event.target).is('input, button, textarea, a, .form-check-input')) {
+                return;
+            }
             const itemId = $(this).attr('id');
-            const item = step2Data[currentYear].find(d => d.id === itemId);
+            // It operates on step2Data instead of yearlyData
+            const item = step2Data[currentYear].data.find(d => d.id === itemId);
             if (item && !item.isEditing) {
                 item.isEditing = true;
-                validateAndRender(); // Re-render to show the edit box
+                // The call to validateAndRender() is what makes the row appear as an edit box
+                validateAndRender();
             }
         });
 
@@ -356,6 +382,12 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             if ($(this).is(':disabled')) return;
             const checkedIds = new Set();
             container.find('input:checked').each(function() { checkedIds.add($(this).data('id')); });
+        // Don't ask for confirmation if just deleting the placeholder orphan header
+        if (checkedIds.has('orphan-header')) {
+            step2Data[currentYear].data = step2Data[currentYear].data.filter(item => !checkedIds.has(item.id));
+            validateAndRender();
+            return;
+       }            
             if (confirm(`Are you sure you want to permanently delete ${checkedIds.size} line(s)?`)) {
                 step2Data[currentYear].data = step2Data[currentYear].data.filter(item => !checkedIds.has(item.id));
                 validateAndRender();
@@ -432,4 +464,4 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
 
     return { init };
 
-})(logger, ValidatorService, DateParser, uiService);
+})(logger, ValidatorService, DateParser, uiService, LineRecognizerService);

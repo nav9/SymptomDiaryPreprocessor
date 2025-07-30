@@ -1,7 +1,3 @@
-/**
- * @file validatorService.js
- * @description Performs deep chronological and structural validation on data from Step 1.
- */
 const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
 
     function validate(structuredLines) {
@@ -19,24 +15,42 @@ const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
     function groupLinesByDate(lines) {
         const groups = {};
         let currentGroup = null;
+
         lines.forEach(line => {
             if (line.type === 'date') {
                 currentGroup = { dateLine: line, entries: [], dateObj: null };
                 groups[line.rawText] = currentGroup;
             } else if (currentGroup) {
+                // Any line that's not a date just gets added to the current group.
                 currentGroup.entries.push(line);
-            } else {
-                if (!groups['__orphaned__']) {
-                    groups['__orphaned__'] = {
-                        dateLine: { type: 'error', rawText: 'Orphaned Entries', reason: 'These lines appeared before any valid date.' },
-                        entries: []
-                    };
-                }
-                groups['__orphaned__'].entries.push(line);
             }
+            // There is no 'else' case, because orphans are now comments
+            // and will be correctly added to the first valid date group.
         });
         return groups;
-    }
+    }    
+    // function groupLinesByDate(lines) {
+    //     const groups = {};
+    //     let currentGroup = null;
+    //     lines.forEach(line => {
+    //         if (line.type === 'date') {
+    //             currentGroup = { dateLine: line, entries: [], dateObj: null };
+    //             groups[line.rawText] = currentGroup;
+    //         } else if (currentGroup) {
+    //             currentGroup.entries.push(line);
+    //         } else {
+    //             flagError(line, "This line appears before any valid date (e.g., '21 jul').");
+    //             if (!groups['__orphaned__']) {
+    //                 groups['__orphaned__'] = {
+    //                     dateLine: { type: 'header', rawText: 'Orphaned Entries (No Associated Date)', id: 'orphan-header' },
+    //                     entries: []
+    //                 };
+    //             }
+    //             groups['__orphaned__'].entries.push(line);
+    //         }
+    //     });
+    //     return groups;
+    // }
     
     function detectDateOrder(dateGroups) {
         const dates = Object.values(dateGroups).map(group => {
@@ -81,26 +95,36 @@ const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
     }
 
     function validateTimeEntries(dateGroups) {
-        // This function uses dateParser internally, so the fix above makes it work.
         Object.values(dateGroups).forEach(group => {
-            const timeEntries = group.entries.filter(e => e.type === 'time');
-            if (timeEntries.length < 2) return;
-            const sortedEntries = [...timeEntries].sort((a, b) => {
-                const timeA = dateParser.extractTimeAndText(a.rawText);
-                const timeB = dateParser.extractTimeAndText(b.rawText);
-                // Use temp dates for comparison
-                const dateA = new Date(2000, 0, 1, parseInt(timeA.hours, 10), parseInt(timeA.minutes, 10));
-                const dateB = new Date(2000, 0, 1, parseInt(timeB.hours, 10), parseInt(timeB.minutes, 10));
-                return dateA.getTime() - dateB.getTime();
+            // Clear any old time-order errors first for this group
+            group.entries.forEach(entry => {
+                if (entry.reason === 'Time is out of order. Times within a day must be ascending.') {
+                   clearError(entry);
+                }
             });
-            timeEntries.forEach((entry, index) => {
-                if (entry.rawText !== sortedEntries[index].rawText) {
-                    flagError(entry, 'Time is out of order. Times within a day must be ascending.');
-                } else {
-                    clearError(entry);
+
+            const timeEntries = group.entries.filter(e => e.type === 'time');
+            if (timeEntries.length < 2) return; // No need to sort if 0 or 1 time entries
+
+            // Create a sorted copy of the entries for comparison
+            const sortedEntries = [...timeEntries].sort((a, b) => {
+                const timeAData = dateParser.extractTimeAndText(a.rawText);
+                const timeBData = dateParser.extractTimeAndText(b.rawText);
+                if (!timeAData || !timeBData) return 0;
+                const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
+                const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
+                return timeA - timeB;
+            });
+
+            // Compare the sorted order with the original order
+            timeEntries.forEach((originalEntry, index) => {
+                const sortedEntry = sortedEntries[index];
+                if (originalEntry.id !== sortedEntry.id) {
+                    flagError(originalEntry, 'Time is out of order. Times within a day must be ascending.');
                 }
             });
         });
+        // The nested loop that was here has been removed.
     }
 
     function flagError(item, reason) {
@@ -112,7 +136,7 @@ const ValidatorService = (function(dateParser, logger, lineRecognizerService) {
         // This call will now work because lineRecognizerService is correctly injected.
         const result = lineRecognizerService.recognizeLine(item.rawText, true);
         item.type = result.type;
-        item.reason = result.reason;
+        item.reason = result.reason || ''; // Ensure reason is not undefined
     }
 
     return { 
