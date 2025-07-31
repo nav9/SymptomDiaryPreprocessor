@@ -5,13 +5,13 @@ const dummyData = [
         20 oct;
         08:15 black coffee, feeling energetic;
         12:30 chicken salad, slight headache started;
-        09:00 pasta with tomato sauce;
+        21:00 pasta with tomato sauce;
         21:40 oatmeal with berries, good;
         // This is a comment;
         21 oct;
         13:00 left-over pasta;
         15:00 headache is worse;
-        08:45 toast and eggs;`
+        20:45 toast and eggs;`
     },
     {
         fileName: 'Health2024.txt',

@@ -55,6 +55,13 @@ echo -e "\n--- Handling jQuery ---"
 JQUERY_URL="https://code.jquery.com/jquery-$JQUERY_VERSION.min.js"
 download_file "$JQUERY_URL" "lib/jquery/jquery.min.js"
 
+
+#download jQuery UI
+JQUERY_UI_VERSION="1.13.2"
+download_file "https://code.jquery.com/ui/$JQUERY_UI_VERSION/jquery-ui.min.js" "lib/jquery/jquery-ui.min.js"
+download_file "https://code.jquery.com/ui/$JQUERY_UI_VERSION/themes/base/jquery-ui.css" "lib/jquery/jquery-ui.css"
+
+
 # 3. Font Awesome (CSS and Webfonts)
 echo -e "\n--- Handling Font Awesome ---"
 FA_CSS_URL="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@$FONT_AWESOME_VERSION/css/all.min.css"

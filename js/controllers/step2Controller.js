@@ -250,10 +250,20 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
 
                 ui.hideLoading();
                 logger.info("Data finalized and ready for Step 3.");
-                alert("Data has been finalized successfully! Proceeding to Step 3 (to be built).");
                 
-                // In a real scenario, you would navigate now:
-                // if (window.navigationCallback) window.navigationCallback(3);
+                // Pass the finalized data to the global state for the next step to consume
+                if (!window.appState.step2) window.appState.step2 = {};
+                window.appState.step2.finalData = step3Data;
+
+                ui.hideLoading();
+                logger.info("Data finalized and ready for Step 3.");
+                
+                // ===== THIS IS THE NAVIGATION TRIGGER =====
+                if (window.navigationCallback) {
+                    window.navigationCallback(3);
+                } else {
+                    alert("Navigation is not available. Could not proceed to Step 3.");
+                }                
 
             } catch(e) {
                 ui.hideLoading();
