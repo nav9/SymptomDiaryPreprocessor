@@ -3,7 +3,7 @@ const dummyData = [
         fileName: 'Health_2023.txt',
         content: `
         20 oct;
-        08:15 black coffee, feeling energetic;
+        08:15 coffee. idli, chutney, feeling energetic;
         12:30 chicken salad, slight headache started;
         21:00 pasta with tomato sauce;
         21:40 oatmeal with berries, good;
@@ -16,7 +16,7 @@ const dummyData = [
     {
         fileName: 'Health2024.txt',
         content: `11 may;
-        09:00 idli;
+        09:00 idli, chutney;
         13:30 rice and vegetables, light walk;
         14:00 soup, feeling tired;
         16:00 coffee;

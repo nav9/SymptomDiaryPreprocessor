@@ -1,53 +1,93 @@
-const AppController = (function(uiService, step1, step2) {
+const AppController = (function(step1, step2, step3) {
     function init() {
         logger.info("Initializing Application Controller");
         
-        window.navigationCallback = navigateToStep; // Make it globally accessible
-        navigateToStep(1, true); 
-                
-        $('.stepper-item').on('click', function() {
-            const targetStep = $(this).data('step');
-            navigateToStep(targetStep);
-        });
+        // Make the navigation function globally accessible for step controllers to use.
+        window.navigationCallback = navigateToStep;
 
-        // Initialize the first step
-        navigateToStep(appState.currentStep, true); 
+        // Attach all global event listeners.
+        attachGlobalFileHandlers();
+        attachStepperNavigation();
+        
+        // Initialize the application to Step 1 on first load.
+        navigateToStep(1, true); 
     }
 
-    function navigateToStep(stepNumber, force = false) {
-        if (!force && appState.isDirty) {
+    function navigateToStep(stepNumber, force = false, dataPayload = null) {
+        if (!force && window.appState && window.appState.isDirty) {
             if (!confirm("You have unsaved changes. Are you sure you want to leave this step?")) {
                 return;
             }
         }
 
-        if (stepNumber === appState.currentStep && !force) return;
-
         logger.info(`Navigating to step ${stepNumber}`);
-        appState.currentStep = stepNumber;
-        appState.isDirty = false;
 
-        // UI updates
+        if (!window.appState) window.appState = {};
+        window.appState.currentStep = stepNumber;
+        window.appState.isDirty = false;
+
+        // Update UI for stepper and content visibility
         $('.app-step').hide();
         $(`#step-${stepNumber}-content`).show();
-
         $('.stepper-item').removeClass('active');
         $(`.stepper-item[data-step=${stepNumber}]`).addClass('active');
         
-        // "Dependency Injection" - Call the init function for the target step's controller
+        // Call the init function for the target step's controller
         switch(stepNumber) {
             case 1:
-                step1.init(navigateToStep); // Pass navigation function
+                step1.init(navigateToStep, dataPayload); 
                 break;
             case 2:
-                step2.init();
+                step2.init(navigateToStep, dataPayload);
                 break;
-            // Add other steps here
+            case 3:
+                step3.init(navigateToStep, dataPayload);
+                break;                
+            // Future steps will be added here
         }
     }
 
-    return { init, navigateToStep };
+    function attachGlobalFileHandlers() {
+        $('#globalFileUpload').on('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const state = JSON.parse(e.target.result);
+                    if (state.step && state.data) {
+                        if (confirm(`This file is from Step ${state.step}. Do you want to load this state?`)) {
+                            navigateToStep(state.step, true, state.data);
+                        }
+                    } else { throw new Error("Invalid project file format."); }
+                } catch (err) {
+                    logger.error("Failed to read project file.", err);
+                    alert("Error: Could not read or parse the selected file.");
+                }
+            };
+            reader.readAsText(file);
+            $(this).val('');
+        });
+        
+        $('#globalSaveBtn').on('click', function(e) {
+            e.preventDefault();
+            if (window.appState && window.appState.currentStep) {
+                $(document).trigger(`save-step-data`, [window.appState.currentStep]);
+            }
+        });
+    }   
 
-})(uiService, Step1Controller, Step2Controller); // Inject dependencies
+    function attachStepperNavigation() {
+        $('.stepper-item').on('click', function() {
+            const targetStep = $(this).data('step');
+            if (window.appState && targetStep !== window.appState.currentStep) {
+                navigateToStep(targetStep);
+            }
+        });
+    }
+
+    return { init };
+
+})(Step1Controller, Step2Controller, Step3Controller);
 
 $(document).ready(AppController.init);

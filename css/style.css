@@ -306,3 +306,7 @@ main {
     border-radius: 1rem;
     margin: 0.2rem;
 }
+.border-dashed {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: 0.375rem;
+}

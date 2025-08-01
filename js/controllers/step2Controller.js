@@ -157,121 +157,207 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
     }
 
     function finalizeData() {
-        ui.showLoading("Finalizing data... This may take a moment.");
-
-        // Use a cancellable timeout to allow the UI to update with the loading modal
+        ui.showLoading("Finalizing all yearly data...");
         const processId = setTimeout(() => {
             try {
-                const step3Data = {}; // The new data structure for all subsequent steps
+                // This is the object that will be passed to Step 3.
+                const finalOutputData = {}; 
 
-                Object.keys(step2Data).forEach(year => {
+                const allYears = Object.keys(step2Data);
+                logger.info(`Finalizing data for ${allYears.length} year(s): ${allYears.join(', ')}`);
+
+                // Loop through each year we have data for.
+                allYears.forEach(year => {
                     const yearObject = step2Data[year];
-                    const dateOrder = yearObject.dateOrder;
-                    const yearNumber = parseInt(year, 10);
+                    if (!yearObject || !yearObject.data) {
+                        logger.warn(`Skipping year ${year} due to missing data.`);
+                        return; // continue to next year
+                    }
 
-                    // 1. Group again to ensure structure is correct after all edits
+                    // --- Start processing for this specific year ---
+                    const yearForParsing = parseInt(year, 10) || new Date().getFullYear();
+
+                    // 1. Group lines by date for this year.
                     const dateGroups = validator.groupLinesByDate(yearObject.data);
+                    
+                    // 2. Parse the date string for each group to create a real Date object.
+                    Object.values(dateGroups).forEach(group => {
+                        group.dateObj = dateParser.parseDate(group.dateLine.rawText, yearForParsing);
+                    });
 
-                    // 2. Sort the date groups chronologically based on the detected order
+                    // 3. Sort the date groups chronologically (always ascending for final output).
                     const sortedGroups = Object.values(dateGroups)
-                        .filter(g => g.dateObj) // Filter out any groups that might be invalid
-                        .sort((a, b) => {
-                            const order = (dateOrder === 'asc' ? 1 : -1);
-                            // Compare the time value of the date objects
-                            return (a.dateObj.getTime() - b.dateObj.getTime()) * order;
-                        });
+                        .filter(g => g.dateObj) // Make sure the date was valid
+                        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-                    // 3. Flatten, create timestamps, and filter out non-time entries
-                    const finalEntries = [];
+                    // 4. Process entries within each sorted group.
+                    const finalEntriesForYear = [];
                     sortedGroups.forEach(group => {
-                        // The date object is already validated, so we can trust it
                         const dateObj = group.dateObj;
+                        
+                        // Sort the time entries for the current day
+                        const sortedTimeEntries = group.entries
+                            .filter(e => e.type === 'time')
+                            .sort((a, b) => {
+                                const timeAData = dateParser.extractTimeAndText(a.rawText);
+                                const timeBData = dateParser.extractTimeAndText(b.rawText);
+                                if (!timeAData || !timeBData) return 0;
+                                const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
+                                const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
+                                return timeA - timeB;
+                            });
 
-                        // Get all time and comment entries for this date
-                        const entriesForDate = group.entries.filter(e => e.type === 'time' || e.type === 'comment');
-
-                        // Sort times within the group. Comments will be interspersed.
-                        const sortedEntries = entriesForDate.sort((a, b) => {
-                            const timeAData = dateParser.extractTimeAndText(a.rawText);
-                            const timeBData = dateParser.extractTimeAndText(b.rawText);
-
-                            // Handle cases where one or both might be a comment
-                            if (!timeAData && !timeBData) return 0; // two comments
-                            if (!timeAData) return -1; // comment comes before time
-                            if (!timeBData) return 1;  // time comes after comment
-
-                            const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
-                            const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
-                            return timeA - timeB;
-                        });
-
-                        // Process each sorted entry for the day
-                        sortedEntries.forEach(entry => {
-                            if (entry.type === 'time') {
-                                const timeData = dateParser.extractTimeAndText(entry.rawText);
-                                if (timeData && !timeData.error) {
-                                    // Build the final, definitive ISO timestamp in UTC
-                                    const isoDate = dateParser.buildISOString(
-                                        dateObj.getUTCFullYear(),
-                                        dateObj.getUTCMonth(),
-                                        dateObj.getUTCDate(),
-                                        timeData.hours,
-                                        timeData.minutes
-                                    );
-                                    
-                                    // The final object for Step 3 has a simpler structure
-                                    finalEntries.push({
-                                        id: entry.id,
-                                        isoDate: isoDate,
-                                        phrases: entry.rawText.replace(/^~?\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*/, '').split(/[.,]/).map(p=>p.trim()).filter(Boolean),
-                                        rawText: entry.rawText
-                                    });
-                                }
-                            } else if (entry.type === 'comment') {
-                                // For now, we can choose to include comments with the previous entry's timestamp
-                                // or assign them a special status. Let's add them with the date's timestamp.
-                                finalEntries.push({
+                        // Create the final, clean objects for this year
+                        sortedTimeEntries.forEach(entry => {
+                            const timeData = dateParser.extractTimeAndText(entry.rawText);
+                            if (timeData && !timeData.error) {
+                                const isoDate = dateParser.buildISOString(
+                                    dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(),
+                                    timeData.hours, timeData.minutes
+                                );
+                                finalEntriesForYear.push({
                                     id: entry.id,
-                                    isoDate: dateObj.toISOString(), // Assigns comment to midnight UTC of that day
-                                    phrases: [entry.rawText], // The whole comment is a single phrase
-                                    isComment: true,
-                                    rawText: entry.rawText
+                                    isoDate: isoDate,
+                                    phraseText: timeData.text
                                 });
                             }
                         });
                     });
                     
-                    // Assign the fully processed array to the new data structure
-                    step3Data[year] = finalEntries;
+                    // Assign the fully processed array for this year to the final output object.
+                    finalOutputData[year] = finalEntriesForYear;
+                    logger.info(`Successfully finalized ${finalEntriesForYear.length} entries for year ${year}.`);
                 });
                 
-                // Pass the finalized data to the global state for the next step to consume
-                window.appState.step2 = { finalData: step3Data };
-
-                ui.hideLoading();
-                logger.info("Data finalized and ready for Step 3.");
-                
-                // Pass the finalized data to the global state for the next step to consume
+                // Pass the complete final output to the global state.
                 if (!window.appState.step2) window.appState.step2 = {};
-                window.appState.step2.finalData = step3Data;
+                window.appState.step2.finalData = finalOutputData;
 
                 ui.hideLoading();
-                logger.info("Data finalized and ready for Step 3.");
+                logger.info("All years finalized. Proceeding to Step 3.");
                 
-                // ===== THIS IS THE NAVIGATION TRIGGER =====
                 if (window.navigationCallback) {
                     window.navigationCallback(3);
-                } else {
-                    alert("Navigation is not available. Could not proceed to Step 3.");
-                }                
+                }
 
             } catch(e) {
                 ui.hideLoading();
                 logger.error("A critical error occurred during data finalization.", e);
                 alert("An error occurred during finalization. Please check the console for details.");
             }
-        }, 100); // 100ms timeout
+        }, 100);
     }
+        
+    // function finalizeData() {
+    //     ui.showLoading("Finalizing data... This may take a moment.");
+
+    //     const processId = setTimeout(() => {
+    //         try {
+    //             const step3Data = {}; 
+    //             Object.keys(step2Data).forEach(year => {
+    //                 const yearObject = step2Data[year];
+    //                 const dateOrder = yearObject.dateOrder;
+    //                 const dateGroups = validator.groupLinesByDate(yearObject.data);
+    //                 Object.values(dateGroups).forEach(group => {
+    //                     const yearForParsing = parseInt(year, 10) || new Date().getFullYear();
+    //                     group.dateObj = dateParser.parseDate(group.dateLine.rawText, yearForParsing);
+    //                 });                    
+    //                 const sortedGroups = Object.values(dateGroups)
+    //                     .filter(g => g.dateObj)
+    //                     .sort((a, b) => {
+    //                         const order = (dateOrder === 'asc' ? 1 : -1);
+    //                         return (a.dateObj.getTime() - b.dateObj.getTime()) * order;
+    //                     });
+
+    //                 // 3. Flatten, create timestamps, and filter out non-time entries
+    //                 const finalEntries = [];
+    //                 sortedGroups.forEach(group => {
+    //                     // The date object is already validated, so we can trust it
+    //                     const dateObj = group.dateObj;
+
+    //                     // Get all time and comment entries for this date
+    //                     //const entriesForDate = group.entries.filter(e => e.type === 'time' || e.type === 'comment');
+
+    //                     // Sort times within the group. Comments will be interspersed.
+    //                     const sortedEntries = group.entries
+    //                         .filter(e => e.type === 'time' || e.type === 'comment')
+    //                         .sort((a, b) => {
+    //                         const timeAData = dateParser.extractTimeAndText(a.rawText);
+    //                         const timeBData = dateParser.extractTimeAndText(b.rawText);
+
+    //                         // Handle cases where one or both might be a comment
+    //                         if (!timeAData && !timeBData) return 0; // two comments
+    //                         if (!timeAData) return -1; // comment comes before time
+    //                         if (!timeBData) return 1;  // time comes after comment
+
+    //                         const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
+    //                         const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
+    //                         return timeA - timeB;
+    //                     });
+
+    //                     // Process each sorted entry for the day
+    //                     sortedEntries.forEach(entry => {
+    //                         if (entry.type === 'time') {
+    //                             const timeData = dateParser.extractTimeAndText(entry.rawText);
+    //                             if (timeData && !timeData.error) {
+    //                                 // Build the final, definitive ISO timestamp in UTC
+    //                                 const isoDate = dateParser.buildISOString(
+    //                                     dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(),
+    //                                     timeData.hours, timeData.minutes
+    //                                 );
+                                    
+    //                                 // The final object for Step 3 has a simpler structure
+    //                                 finalEntries.push({
+    //                                     id: entry.id,
+    //                                     isoDate: isoDate,
+    //                                     phraseText: timeData.text // Pass the clean text part of the line
+    //                                 });
+    //                             }
+    //                         } else if (entry.type === 'comment') {
+    //                             // For now, we can choose to include comments with the previous entry's timestamp
+    //                             // or assign them a special status. Let's add them with the date's timestamp.
+    //                             finalEntries.push({
+    //                                 id: entry.id,
+    //                                 isoDate: dateObj.toISOString(),
+    //                                 phraseText: entry.rawText, // For comments, the whole line is the text
+    //                                 isComment: true
+    //                             });
+    //                         }
+    //                     });
+    //                 });
+                    
+    //                 // Assign the fully processed array to the new data structure
+    //                 step3Data[year] = finalEntries;
+    //             });
+                
+    //             // Pass the finalized data to the global state for the next step to consume
+    //             if (!window.appState.step2) window.appState.step2 = {};
+    //             window.appState.step2.finalData = step3Data;
+
+    //             ui.hideLoading();
+    //             logger.info("Data finalized and ready for Step 3.");
+                
+    //             // Pass the finalized data to the global state for the next step to consume
+    //             if (!window.appState.step2) window.appState.step2 = {};
+    //             window.appState.step2.finalData = step3Data;
+
+    //             ui.hideLoading();
+    //             logger.info("Data finalized and ready for Step 3.");
+                
+    //             // ===== THIS IS THE NAVIGATION TRIGGER =====
+    //             if (window.navigationCallback) {
+    //                 window.navigationCallback(3);
+    //             } else {
+    //                 alert("Navigation is not available. Could not proceed to Step 3.");
+    //             }                
+
+    //         } catch(e) {
+    //             ui.hideLoading();
+    //             logger.error("A critical error occurred during data finalization.", e);
+    //             alert("An error occurred during finalization. Please check the console for details.");
+    //         }
+    //     }, 100); // 100ms timeout
+    // }
 
     function attachEventListeners() {
         // All listeners from Step 1 (OK, Cancel, Add, Edit, Delete, Checkbox)
