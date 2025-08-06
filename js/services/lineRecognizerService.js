@@ -24,7 +24,7 @@ const LineRecognizerService = (function(dateParser, logger) {
         return { type: 'error', reason: 'Unrecognized format. Expected: "dd mmm" or "[~]hh:mm text".' };
     }
 
-    // THIS IS THE FIX: Return an object containing the function.
+    // Return an object containing the function.
     return { 
         recognizeLine 
     };

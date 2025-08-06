@@ -1,36 +1,36 @@
 const Step2Controller = (function(logger, validator, dateParser, ui, lineRecognizerService) {
 
     const selectors = {
-        stickyHeader: $('#step2-sticky-header'), // Assuming new IDs for this step
+        stickyHeader: $('#step2-sticky-header'),
         dataContainer: $('#step2-data-container'),
         topProceedContainer: $('#step2-top-proceed'),
         bottomProceedContainer: $('#step2-bottom-proceed')
     };
 
-    const step2Data = {}; // { "2024": { data: [...], dateOrder: 'asc'}, "2023": ... }
+    let step2Data = {};
     let currentYear = null;
 
-    function init() {
+    function init(navCallback, payload) {
         logger.info("Initializing Step 2 Controller.");
-        
-        // This is where data is passed from Step 1
-        const step1CleanedData = getStep1Data();
-        if (Object.keys(step1CleanedData).length === 0) {
-            selectors.dataContainer.html('<div class="alert alert-warning">No data from Step 1. Please go back and load data.</div>');
+        const step1Data = payload || getStep1Data();
+        if (Object.keys(step1Data).length === 0) {
+            selectors.dataContainer.html('<div class="alert alert-warning">No data from Step 1. Please go back.</div>');
             return;
         }
 
-        ui.showLoading("Analyzing date and time order...");
+        ui.showLoading("Structuring and validating data...");
         setTimeout(() => {
             try {
+                // Initialize step2Data only once from Step 1's output.
                 if (Object.keys(step2Data).length === 0) {
-                     Object.entries(step1CleanedData).forEach(([year, lines]) => {
-                        step2Data[year] = { data: JSON.parse(JSON.stringify(lines)), dateOrder: 'tbd' };
+                     Object.entries(step1Data).forEach(([year, lines]) => {
+                        const yearForParsing = parseInt(year, 10) || new Date().getFullYear();
+                        const structuredData = validator.structureData(lines, yearForParsing);
+                        step2Data[year] = { structuredData, isValidated: false };
                     });
                 }
                 currentYear = Object.keys(step2Data)[0];
-                validateAndRender();
-                attachEventListeners();
+                runValidation(); // Initial validation and render.
             } catch (e) {
                 logger.error("Error during Step 2 initialization", e);
             } finally {
@@ -38,34 +38,45 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
             }
         }, 50);
     }
-
+    
     function getStep1Data() {
         if (window.appState && window.appState.step1 && window.appState.step1.finalData) {
             return window.appState.step1.finalData;
         }
-        logger.warn("Could not find data from Step 1 in global state.");
         return {};
     }
 
-    function validateAndRender() {
+    /**
+     * The single source of truth for validation and rendering in this step.
+     */
+    function runValidation() {
         if (!currentYear) return;
-        const { validatedData, dateOrder } = validator.validate(step2Data[currentYear].data);
-        step2Data[currentYear].data = validatedData;
-        step2Data[currentYear].dateOrder = dateOrder;
         
-        const totalErrorCount = Object.values(step2Data).flatMap(y => y.data).filter(l => l.type === 'error').length;
-        const currentYearErrorCount = step2Data[currentYear].data.filter(l => l.type === 'error').length;
+        const yearObject = step2Data[currentYear];
+        const yearForParsing = parseInt(currentYear, 10) || new Date().getFullYear();
         
-        renderStickyHeader(currentYearErrorCount, totalErrorCount);
+        // Phase 2 validation (chronology) is run here.
+        const { validatedData, totalErrors } = validator.validateChronology(yearObject.structuredData, yearForParsing);
+        yearObject.structuredData = validatedData;
+        
+        let grandTotalErrors = 0;
+        Object.values(step2Data).forEach(yearObj => {
+            // Count errors by checking the .error property which the validator sets.
+            grandTotalErrors += yearObj.structuredData.filter(line => line.error).length;
+        });
+
+        renderStickyHeader(totalErrors, grandTotalErrors);
         renderDataContainer();
-        updateProceedButton(totalErrorCount);
+        updateProceedButton(grandTotalErrors);
+        attachEventListeners(); // Re-attach listeners to the newly rendered elements.
     }
 
     function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
         const years = Object.keys(step2Data).sort();
         const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
         const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
-        const errorIds = step2Data[currentYear].data.filter(l => l.type === 'error').map(l => l.id);
+        
+        const errorIds = step2Data[currentYear].structuredData.filter(l => l.error).map(l => l.id);
         const nextPrevDisabled = errorIds.length < 2 ? 'disabled' : '';
         
         const headerHtml = `
@@ -75,9 +86,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                     <select id="step2-year-select" class="form-select form-select-sm w-auto">${options}</select>
                 </div>
                 <div class="col-auto">
-                    <span class="badge ${errorBadgeClass}">
-                        ${currentYearErrorCount} issues this year / ${totalErrorCount} total
-                    </span>
+                    <span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues this year / ${totalErrorCount} total</span>
                 </div>
                 <div class="col">
                     <button id="step2-prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
@@ -94,22 +103,22 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
             <div id="step2-top-proceed" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
     }
-    
+
     function renderDataContainer() {
         selectors.dataContainer.empty();
         if (!step2Data[currentYear]) return;
-        step2Data[currentYear].data.forEach(item => {
+        step2Data[currentYear].structuredData.forEach(item => {
             selectors.dataContainer.append(renderRow(item));
         });
     }
 
     function renderRow(item) {
         let contentHtml = '';
-        let rowClass = item.type === 'error' ? 'row-error' : '';
+        // The error property is now the source of truth for styling.
+        const rowClass = item.error ? 'row-error' : '';
+        let lineContent = item.time || item.note || item.unrecognized || item.rawText || '';
 
-        // If the item is currently being edited, force it into an error-style editable view
         if (item.isEditing) {
-            rowClass = 'row-error';
             contentHtml = `
                 <div class="row-content w-100">
                     <textarea class="editable-textarea" rows="1">${item.rawText}</textarea>
@@ -119,16 +128,11 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                     </div>
                 </div>`;
         } else {
-            // Standard read-only view
-            let lineClass = 'line-text';
-            if (item.type === 'comment') lineClass += ' comment-text';
-            if (item.type === 'date') lineClass += ' date-text';
-            if (item.type === 'header') lineClass += ' date-text text-danger';
-
+            // Rebuild the display text from the structured properties
             contentHtml = `
                 <div class="row-content w-100">
-                    <span class="${lineClass}">${item.rawText || ' '}</span>
-                    ${item.type === 'error' ? `<div class="error-message">${item.reason}</div>` : ''}
+                    <span class="line-text">${lineContent}</span>
+                    ${item.error ? `<div class="error-message">${item.error}</div>` : ''}
                 </div>`;
         }
 
@@ -136,12 +140,12 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
     const checkboxHtml = item.type === 'header' 
         ? `<input class="form-check-input" type="checkbox" data-id="${item.id}" disabled>`
         : `<input class="form-check-input" type="checkbox" data-id="${item.id}">`;
-
-    return `
-        <div id="${item.id}" class="list-group-item data-row ${rowClass}">
-            ${checkboxHtml}
-            ${contentHtml}
-        </div>`;
+                
+        return `
+                <div id="${item.id}" class="list-group-item data-row ${rowClass}">
+                    ${checkboxHtml}
+                    ${contentHtml}
+                </div>`;
     }
     
     
@@ -156,60 +160,69 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
         }
     }
 
+    /**
+     * Final transformation: Sorts all data chronologically, creates ISO timestamps,
+     * removes non-entry lines, and prepares the data structure for Step 3.
+     */
     function finalizeData() {
         ui.showLoading("Finalizing all yearly data...");
+
+        // Use a cancellable timeout to allow the UI to update with the loading modal
         const processId = setTimeout(() => {
             try {
-                // This is the object that will be passed to Step 3.
                 const finalOutputData = {}; 
-
                 const allYears = Object.keys(step2Data);
                 logger.info(`Finalizing data for ${allYears.length} year(s): ${allYears.join(', ')}`);
 
-                // Loop through each year we have data for.
                 allYears.forEach(year => {
                     const yearObject = step2Data[year];
-                    if (!yearObject || !yearObject.data) {
+                    if (!yearObject || !yearObject.structuredData) {
                         logger.warn(`Skipping year ${year} due to missing data.`);
-                        return; // continue to next year
+                        return;
                     }
-
-                    // --- Start processing for this specific year ---
-                    const yearForParsing = parseInt(year, 10) || new Date().getFullYear();
-
-                    // 1. Group lines by date for this year.
-                    const dateGroups = validator.groupLinesByDate(yearObject.data);
                     
-                    // 2. Parse the date string for each group to create a real Date object.
-                    Object.values(dateGroups).forEach(group => {
-                        group.dateObj = dateParser.parseDate(group.dateLine.rawText, yearForParsing);
+                    const yearForParsing = parseInt(year, 10);
+                    const finalEntriesForYear = [];
+                    
+                    // --- STEP 1: Create simple, clean groups for finalization ---
+                    const simpleGroups = {};
+                    yearObject.structuredData.forEach(item => {
+                        // We only care about items that have a date and are not errors.
+                        if (item.date && !item.error) {
+                            if (!simpleGroups[item.date]) {
+                                simpleGroups[item.date] = {
+                                    dateObj: dateParser.parseDate(item.date, yearForParsing),
+                                    entries: []
+                                };
+                            }
+                            simpleGroups[item.date].entries.push(item);
+                        }
                     });
 
-                    // 3. Sort the date groups chronologically (always ascending for final output).
-                    const sortedGroups = Object.values(dateGroups)
-                        .filter(g => g.dateObj) // Make sure the date was valid
+                    // --- STEP 2: Sort these simple groups chronologically (always ascending) ---
+                    const sortedGroups = Object.values(simpleGroups)
+                        .filter(g => g.dateObj) // Ensure date was valid
                         .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-                    // 4. Process entries within each sorted group.
-                    const finalEntriesForYear = [];
+                    // --- STEP 3: Process entries within each sorted group ---
                     sortedGroups.forEach(group => {
                         const dateObj = group.dateObj;
                         
-                        // Sort the time entries for the current day
+                        // Filter for valid time entries and sort them
                         const sortedTimeEntries = group.entries
-                            .filter(e => e.type === 'time')
+                            .filter(e => e.time && !dateParser.isLineJustDate(e.time))
                             .sort((a, b) => {
-                                const timeAData = dateParser.extractTimeAndText(a.rawText);
-                                const timeBData = dateParser.extractTimeAndText(b.rawText);
+                                const timeAData = dateParser.extractTimeAndText(a.time);
+                                const timeBData = dateParser.extractTimeAndText(b.time);
                                 if (!timeAData || !timeBData) return 0;
                                 const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
                                 const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
                                 return timeA - timeB;
                             });
-
-                        // Create the final, clean objects for this year
+                        
+                        // --- STEP 4: Build the final clean objects with ISO dates ---
                         sortedTimeEntries.forEach(entry => {
-                            const timeData = dateParser.extractTimeAndText(entry.rawText);
+                            const timeData = dateParser.extractTimeAndText(entry.time);
                             if (timeData && !timeData.error) {
                                 const isoDate = dateParser.buildISOString(
                                     dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(),
@@ -222,9 +235,9 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                                 });
                             }
                         });
+                        // Notes and other types are intentionally ignored in the final output for Step 3.
                     });
                     
-                    // Assign the fully processed array for this year to the final output object.
                     finalOutputData[year] = finalEntriesForYear;
                     logger.info(`Successfully finalized ${finalEntriesForYear.length} entries for year ${year}.`);
                 });
@@ -245,198 +258,99 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                 logger.error("A critical error occurred during data finalization.", e);
                 alert("An error occurred during finalization. Please check the console for details.");
             }
-        }, 100);
+        }, 100); // A small timeout prevents the UI from freezing on large datasets.
     }
         
     // function finalizeData() {
-    //     ui.showLoading("Finalizing data... This may take a moment.");
-
-    //     const processId = setTimeout(() => {
+    //     ui.showLoading("Finalizing data...");
+    //     setTimeout(() => {
     //         try {
-    //             const step3Data = {}; 
-    //             Object.keys(step2Data).forEach(year => {
-    //                 const yearObject = step2Data[year];
-    //                 const dateOrder = yearObject.dateOrder;
-    //                 const dateGroups = validator.groupLinesByDate(yearObject.data);
-    //                 Object.values(dateGroups).forEach(group => {
-    //                     const yearForParsing = parseInt(year, 10) || new Date().getFullYear();
-    //                     group.dateObj = dateParser.parseDate(group.dateLine.rawText, yearForParsing);
-    //                 });                    
-    //                 const sortedGroups = Object.values(dateGroups)
-    //                     .filter(g => g.dateObj)
-    //                     .sort((a, b) => {
-    //                         const order = (dateOrder === 'asc' ? 1 : -1);
-    //                         return (a.dateObj.getTime() - b.dateObj.getTime()) * order;
-    //                     });
+    //             const finalOutputData = {}; 
+    //             Object.entries(step2Data).forEach(([year, yearObject]) => {
+    //                 const yearForParsing = parseInt(year, 10);
+    //                 const finalEntriesForYear = [];
+    //                 const dateGroups = validator.groupStructuredDataByDate(yearObject.structuredData, yearForParsing);
 
-    //                 // 3. Flatten, create timestamps, and filter out non-time entries
-    //                 const finalEntries = [];
+    //                 // Sort groups by date (always ascending for final output)
+    //                 const sortedGroups = Object.values(dateGroups).filter(g => g.dateObj).sort((a,b) => a.dateObj.getTime() - b.dateObj.getTime());
+                    
     //                 sortedGroups.forEach(group => {
-    //                     // The date object is already validated, so we can trust it
     //                     const dateObj = group.dateObj;
-
-    //                     // Get all time and comment entries for this date
-    //                     //const entriesForDate = group.entries.filter(e => e.type === 'time' || e.type === 'comment');
-
-    //                     // Sort times within the group. Comments will be interspersed.
-    //                     const sortedEntries = group.entries
-    //                         .filter(e => e.type === 'time' || e.type === 'comment')
-    //                         .sort((a, b) => {
-    //                         const timeAData = dateParser.extractTimeAndText(a.rawText);
-    //                         const timeBData = dateParser.extractTimeAndText(b.rawText);
-
-    //                         // Handle cases where one or both might be a comment
-    //                         if (!timeAData && !timeBData) return 0; // two comments
-    //                         if (!timeAData) return -1; // comment comes before time
-    //                         if (!timeBData) return 1;  // time comes after comment
-
-    //                         const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
-    //                         const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
-    //                         return timeA - timeB;
-    //                     });
-
-    //                     // Process each sorted entry for the day
-    //                     sortedEntries.forEach(entry => {
-    //                         if (entry.type === 'time') {
-    //                             const timeData = dateParser.extractTimeAndText(entry.rawText);
+    //                     group.entries.forEach(entry => {
+    //                         if (entry.time) {
+    //                             const timeData = dateParser.extractTimeAndText(entry.time);
     //                             if (timeData && !timeData.error) {
-    //                                 // Build the final, definitive ISO timestamp in UTC
-    //                                 const isoDate = dateParser.buildISOString(
-    //                                     dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(),
-    //                                     timeData.hours, timeData.minutes
-    //                                 );
-                                    
-    //                                 // The final object for Step 3 has a simpler structure
-    //                                 finalEntries.push({
-    //                                     id: entry.id,
-    //                                     isoDate: isoDate,
-    //                                     phraseText: timeData.text // Pass the clean text part of the line
-    //                                 });
+    //                                 const isoDate = dateParser.buildISOString(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), timeData.hours, timeData.minutes);
+    //                                 finalEntriesForYear.push({ id: entry.id, isoDate: isoDate, phraseText: timeData.text });
     //                             }
-    //                         } else if (entry.type === 'comment') {
-    //                             // For now, we can choose to include comments with the previous entry's timestamp
-    //                             // or assign them a special status. Let's add them with the date's timestamp.
-    //                             finalEntries.push({
-    //                                 id: entry.id,
-    //                                 isoDate: dateObj.toISOString(),
-    //                                 phraseText: entry.rawText, // For comments, the whole line is the text
-    //                                 isComment: true
-    //                             });
+    //                         } else if (entry.note) {
+    //                             finalEntriesForYear.push({ id: entry.id, isoDate: dateObj.toISOString(), note: entry.note });
     //                         }
     //                     });
     //                 });
-                    
-    //                 // Assign the fully processed array to the new data structure
-    //                 step3Data[year] = finalEntries;
+    //                 finalOutputData[year] = finalEntriesForYear;
     //             });
                 
-    //             // Pass the finalized data to the global state for the next step to consume
-    //             if (!window.appState.step2) window.appState.step2 = {};
-    //             window.appState.step2.finalData = step3Data;
-
+    //             window.appState.step2 = { finalData: finalOutputData };
     //             ui.hideLoading();
-    //             logger.info("Data finalized and ready for Step 3.");
-                
-    //             // Pass the finalized data to the global state for the next step to consume
-    //             if (!window.appState.step2) window.appState.step2 = {};
-    //             window.appState.step2.finalData = step3Data;
-
-    //             ui.hideLoading();
-    //             logger.info("Data finalized and ready for Step 3.");
-                
-    //             // ===== THIS IS THE NAVIGATION TRIGGER =====
-    //             if (window.navigationCallback) {
-    //                 window.navigationCallback(3);
-    //             } else {
-    //                 alert("Navigation is not available. Could not proceed to Step 3.");
-    //             }                
-
-    //         } catch(e) {
-    //             ui.hideLoading();
-    //             logger.error("A critical error occurred during data finalization.", e);
-    //             alert("An error occurred during finalization. Please check the console for details.");
-    //         }
-    //     }, 100); // 100ms timeout
+    //             if (window.navigationCallback) window.navigationCallback(3);
+    //         } catch(e) { /* ... error handling ... */ }
+    //     }, 100);
     // }
 
     function attachEventListeners() {
-        // All listeners from Step 1 (OK, Cancel, Add, Edit, Delete, Checkbox)
-        // are reused here, but with Step 2's selectors.
         const header = selectors.stickyHeader;
         const container = selectors.dataContainer;        
-        // Clear any previously attached delegated listeners to prevent duplicates
-        header.off();
-        container.off();
+        header.off(); container.off();
         $('body').off('click', '#proceed-to-step3-btn');
         
         header.on('change', '#step2-year-select', function() {
             currentYear = $(this).val();
-            validateAndRender();
+            runValidation();
         });
 
-        // OK button (when a row is in edit mode)
         container.on('click', '.ok-btn', function() {
             const itemId = $(this).data('id');
-            const item = step2Data[currentYear].data.find(d => d.id === itemId);
+            const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
             if (!item) return;
-            const newText = $(this).closest('.row-content').find('textarea').val().trim();
-            // Before saving, recognize the user's input.
-            const index = step2Data[currentYear].data.findIndex(d => d.id === itemId);
-            let lastDateIsValid = false;
-            if (index > 0) {
-                const prevItem = step2Data[currentYear].data[index - 1];
-                if (prevItem.type === 'date' || prevItem.type === 'time') {
-                    lastDateIsValid = true;
-                }
-            }            
-            item.rawText = newText; // Otherwise, save it as is.
-            item.isEditing = false;            
-            validateAndRender(); // Re-validate and render the entire view
+            // CORRECT, SIMPLIFIED LOGIC: Just update rawText and let runValidation handle the rest.
+            item.rawText = $(this).closest('.row-content').find('textarea').val().trim();
+            item.isEditing = false;
+            runValidation();
         });
 
-        // CANCEL button (when a row is in edit mode)
         container.on('click', '.cancel-btn', function() {
             const itemId = $(this).data('id');
-            const item = step2Data[currentYear].data.find(d => d.id === itemId);
-            if (item) {
-                item.isEditing = false; // Just exit edit mode, discarding changes
-            }
-            validateAndRender(); // Re-render to show the original state
-        });        
+            const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
+            if (item) item.isEditing = false;
+            // CORRECT: Call runValidation to redraw, not the old function.
+            runValidation();
+        });         
 
-        // This goes inside attachEventListeners in step2Controller.js
         container.on('click', '.data-row', function(event) {
-            // Prevent triggering when clicking an interactive element within the row
-            if ($(event.target).is('input, button, textarea, a, .form-check-input')) {
-                return;
-            }
+            if ($(event.target).is('input, button, textarea, a, .form-check-input')) return;
             const itemId = $(this).attr('id');
-            // It operates on step2Data instead of yearlyData
-            const item = step2Data[currentYear].data.find(d => d.id === itemId);
+            const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
             if (item && !item.isEditing) {
                 item.isEditing = true;
-                // The call to validateAndRender() is what makes the row appear as an edit box
-                validateAndRender();
+                // CORRECT: Call runValidation to redraw, not the old function.
+                runValidation();
             }
         });
 
         // ADD button
         header.on('click', '#step2-add-btn', function() {
-            const newItem = {
-                id: `item-${Date.now()}-${Math.random()}`,
-                rawText: '',
-                isEditing: true, // Start in edit mode immediately
-                type: 'new'
-            };
+            const newItem = { id: `item-${Date.now()}-${Math.random()}`, rawText: '', isEditing: true };
             const checkedCheckboxes = container.find('input:checked');
-            let insertIndex = step2Data[currentYear].data.length; // Default to end
+            // CORRECT: All '.data' changed to '.structuredData'
+            let insertIndex = step2Data[currentYear].structuredData.length;
             if (checkedCheckboxes.length > 0) {
                 const firstSelectedId = checkedCheckboxes.first().data('id');
-                const foundIndex = step2Data[currentYear].data.findIndex(d => d.id === firstSelectedId);
+                const foundIndex = step2Data[currentYear].structuredData.findIndex(d => d.id === firstSelectedId);
                 if (foundIndex !== -1) insertIndex = foundIndex + 1;
             }
-            step2Data[currentYear].data.splice(insertIndex, 0, newItem);
-            validateAndRender();
+            step2Data[currentYear].structuredData.splice(insertIndex, 0, newItem);
+            runValidation();
             const newElement = document.getElementById(newItem.id);
             if (newElement) {
                 newElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -463,20 +377,20 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
             container.find('input:checked').each(function() { checkedIds.add($(this).data('id')); });
         // Don't ask for confirmation if just deleting the placeholder orphan header
         if (checkedIds.has('orphan-header')) {
-            step2Data[currentYear].data = step2Data[currentYear].data.filter(item => !checkedIds.has(item.id));
+            step2Data[currentYear].structuredData = step2Data[currentYear].structuredData.filter(item => !checkedIds.has(item.id));
             validateAndRender();
             return;
        }            
             if (confirm(`Are you sure you want to permanently delete ${checkedIds.size} line(s)?`)) {
-                step2Data[currentYear].data = step2Data[currentYear].data.filter(item => !checkedIds.has(item.id));
-                validateAndRender();
+                step2Data[currentYear].structuredData = step2Data[currentYear].structuredData.filter(item => !checkedIds.has(item.id));
+                runValidation();
             }
         });        
 
         header.on('click', '#step2-move-up-btn, #step2-move-down-btn', function() {
             if ($(this).is(':disabled')) return;
             const isMoveUp = $(this).attr('id') === 'step2-move-up-btn';
-            const currentData = step2Data[currentYear].data;
+            const currentData = step2Data[currentYear].structuredData;
             
             // Get the indices of all checked items
             const checkedIndices = [];
@@ -505,7 +419,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui, lineRecogni
                     }
                 }
             }
-            validateAndRender();
+            runValidation();
         });
 
         // NEXT/PREV ERROR buttons
