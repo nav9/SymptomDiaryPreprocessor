@@ -113,7 +113,6 @@ touch js/state.js
 touch js/controllers/appController.js # Main orchestrator
 touch js/controllers/step1Controller.js # Logic for Step 1
 touch js/controllers/step2Controller.js # Logic for Step 2
-touch js/services/parserService.js
 touch js/services/validatorService.js
 touch js/ui/uiService.js # For modals, notifications, etc.
 touch js/utils/date-parser.js # For robust date parsing
