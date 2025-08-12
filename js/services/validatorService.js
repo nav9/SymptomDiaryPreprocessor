@@ -4,129 +4,168 @@
  */
 const ValidatorService = (function(dateParser, lineRecognizerService) {
 
-    /**
-     * Phase 1: Structures raw lines into a logical format with associated dates.
-     * @param {Array<Object>} rawLines - The array of {id, rawText} objects from Step 1.
-     * @param {number} year - The context year for parsing dates.
-     * @returns {Array<Object>} A new array of structured data objects.
-     */
-    function structureData(rawLines, year) {
+    function structureData(rawLines) {
         const structuredData = [];
-        let currentDate = ""; // Tracks the current date string (e.g., "20 oct")
+        let currentDate = "";
 
         rawLines.forEach(line => {
-            const { id, rawText } = line;
+            const { id, rawText, isEditing } = line; // Capture the isEditing flag
             const result = lineRecognizerService.recognizeLine(rawText, currentDate !== "");
             
-            let entry = { id, date: currentDate };
+            // Preserve the isEditing state in the new object
+            let entry = { id, rawText, date: currentDate, error: null, isEditing: isEditing || false };
 
-            if (result.type === 'date') {
-                currentDate = rawText; // Set the new current date
-                entry.date = currentDate;
-                entry.time = rawText; // For display purposes, the date line is its own "time"
-            } else if (result.type === 'time') {
-                entry.time = rawText;
-            } else if (result.type === 'comment') {
-                entry.note = rawText;
-            } else { // 'error'
-                entry.unrecognized = rawText;
+            switch(result.type) {
+                case 'date':
+                    currentDate = rawText;
+                    entry.date = currentDate;
+                    entry.isDateLine = true; 
+                    break;
+                case 'time':
+                    entry.time = rawText;
+                    break;
+                case 'comment':
+                    entry.note = rawText;
+                    break;
+                case 'error':
+                default:
+                    entry.unrecognized = rawText;
+                    break;
             }
             structuredData.push(entry);
         });
         return structuredData;
     }
 
-    /**
-     * Phase 2: Validates the structured data for date/time order and validity.
-     * @param {Array<Object>} structuredData - The output from structureData.
-     * @param {number} year - The context year.
-     * @returns {{validatedData: Array<Object>, totalErrors: number}}
-     */
-    function validateChronology(structuredData, year) {
-        const dateGroups = groupStructuredDataByDate(structuredData, year);
+    function validateChronology(data, year) {
+        data.forEach(entry => entry.error = null);
 
-        // Date validation first
+        const dateGroups = groupDataByDate(data, year);
         const isAscending = detectDateOrder(dateGroups);
-        validateDateOrder(dateGroups, isAscending);
 
-        // Then time validation within each group
-        validateTimeEntries(dateGroups);
-
-        // Flatten back to a single array and count errors
-        let totalErrors = 0;
-        const validatedData = Object.values(dateGroups).flatMap(group => {
-            group.entries.forEach(entry => { if (entry.error) totalErrors++; });
-            return group.entries;
-        });
+        validateDateOrderAndValidity(dateGroups, isAscending, year);
+        validateTimeOrderAndValidity(dateGroups);
+        
+        const validatedData = Array.from(dateGroups.values()).flatMap(group => group.entries);
+        const totalErrors = validatedData.filter(entry => entry.error).length;
         
         return { validatedData, totalErrors };
     }
 
-    // --- Helper Functions ---
+    // --- Helper Functions for Validation ---
 
-    function groupStructuredDataByDate(data, year) {
-        const groups = {};
+    function groupDataByDate(data, year) {
+        const groups = new Map();
         data.forEach(entry => {
-            if (!groups[entry.date]) {
-                const dateObj = dateParser.parseDate(entry.date, year);
-                groups[entry.date] = { dateObj, entries: [] };
+            const dateKey = entry.date || ""; 
+            if (!groups.has(dateKey)) {
+                const dateObj = dateKey ? dateParser.parseDate(dateKey, year) : null;
+                groups.set(dateKey, { dateObj, entries: [] });
             }
-            groups[entry.date].entries.push(entry);
+            groups.get(dateKey).entries.push(entry);
         });
         return groups;
     }
 
     function detectDateOrder(dateGroups) {
-        const dates = Object.values(dateGroups)
-            .map(g => g.dateObj)
-            .filter(Boolean); // Filter out invalid/empty dates
-        if (dates.length < 2) return true; // Default to ascending
+        const dates = Array.from(dateGroups.values()).map(g => g.dateObj).filter(Boolean);
+        if (dates.length < 2) return true;
         let ascCount = 0;
         for (let i = 1; i < dates.length; i++) {
-            if (dates[i] > dates[i-1]) ascCount++;
+            if (dates[i] > dates[i - 1]) ascCount++;
         }
-        return (ascCount / (dates.length - 1)) >= 0.5; // True if 50% or more are ascending
+        return (ascCount / (dates.length - 1)) >= 0.5;
     }
 
-    function validateDateOrder(dateGroups, isAscending) {
-        const sortedDates = Object.values(dateGroups)
-            .map(g => g.dateObj)
-            .filter(Boolean)
-            .sort((a, b) => a.getTime() - b.getTime());
+    // function validateDateOrder(dateGroups, isAscending) {
+    //     const sortedDates = Object.values(dateGroups)
+    //         .map(g => g.dateObj)
+    //         .filter(Boolean)
+    //         .sort((a, b) => a.getTime() - b.getTime());
         
-        if (!isAscending) sortedDates.reverse();
+    //     if (!isAscending) sortedDates.reverse();
 
-        Object.values(dateGroups).forEach((group, index) => {
-            // Check for invalid dates (e.g., "30 feb")
-            if (!group.dateObj) {
-                group.entries.forEach(entry => entry.error = "Invalid date format or value.");
-                return; // Skip order check for invalid dates
+    //     Object.values(dateGroups).forEach((group, index) => {
+    //         // Check for invalid dates (e.g., "30 feb")
+    //         if (!group.dateObj) {
+    //             group.entries.forEach(entry => entry.error = "Invalid date format or value.");
+    //             return; // Skip order check for invalid dates
+    //         }
+    //         // Check for out-of-order dates
+    //         if (group.dateObj.getTime() !== sortedDates[index]?.getTime()) {
+    //             group.entries.forEach(entry => entry.error = `Date is out of order (expected ${isAscending ? 'ascending' : 'descending'}).`);
+    //         }
+    //     });
+    // }
+
+    function validateDateOrderAndValidity(dateGroups, isAscending, year) {
+        // Handle groups without a date first (e.g., initial comments).
+        if (dateGroups.has("")) {
+            dateGroups.get("").entries.forEach(entry => {
+                if(entry.unrecognized) entry.error = "Unrecognized format. Must be a comment, a date (e.g., 'dd mmm'), or a time entry (e.g., 'hh:mm text').";
+            });
+        }
+        
+        // Filter to get only the groups that should have a date.
+        const validDateGroups = Array.from(dateGroups.values()).filter(g => g.dateObj);
+
+        // Create a correctly sorted array of Date objects to compare against.
+        const sortedDateObjs = validDateGroups.map(g => g.dateObj).sort((a, b) => a.getTime() - b.getTime());
+        if (!isAscending) sortedDateObjs.reverse();
+
+        // Compare each group's date to its expected position in the sorted list.
+        validDateGroups.forEach((group, index) => {
+            const dateLineEntry = group.entries.find(e => e.isDateLine);
+            if (!dateLineEntry) return;
+
+            // Check 1: Is the date value valid (e.g., "30 Feb")?
+            if (isNaN(group.dateObj.getTime())) {
+                dateLineEntry.error = "Invalid date value (e.g., '30 Feb' is not a real date).";
+                return;
             }
-            // Check for out-of-order dates
-            if (group.dateObj.getTime() !== sortedDates[index]?.getTime()) {
-                group.entries.forEach(entry => entry.error = `Date is out of order (expected ${isAscending ? 'ascending' : 'descending'}).`);
+
+            // Check 2: Does the date at this position match the expected sorted date?
+            if (group.dateObj.getTime() !== sortedDateObjs[index]?.getTime()) {
+                const orderText = isAscending ? 'ascending' : 'descending';
+                dateLineEntry.error = `Date is out of order (expected ${orderText}).`;
             }
         });
     }
 
-    function validateTimeEntries(dateGroups) {
-        Object.values(dateGroups).forEach(group => {
-            const timeEntries = group.entries.filter(e => e.time && !dateParser.isLineJustDate(e.time));
-            if (timeEntries.length < 2) return;
+    function validateTimeOrderAndValidity(dateGroups) {
+        dateGroups.forEach(group => {
+            if (!group.dateObj || isNaN(group.dateObj.getTime())) return;
 
-            const sortedTimes = [...timeEntries].sort((a, b) => {
-                const timeA = dateParser.extractTimeAndText(a.time);
-                const timeB = dateParser.extractTimeAndText(b.time);
-                if (!timeA || !timeB) return 0;
-                return (parseInt(timeA.hours, 10) * 60 + parseInt(timeA.minutes, 10)) -
-                       (parseInt(timeB.hours, 10) * 60 + parseInt(timeB.minutes, 10));
-            });
-
-            timeEntries.forEach((entry, index) => {
-                if (entry.id !== sortedTimes[index].id) {
-                    entry.error = "Time is out of order.";
+            const timeEntries = group.entries.filter(e => e.time);
+            
+            timeEntries.forEach(entry => {
+                const timeData = dateParser.extractTimeAndText(entry.time);
+                if (!timeData) {
+                    entry.error = "Unrecognized time format. Expected '[~]hh:mm text'.";
+                } else if (timeData.error) {
+                    entry.error = timeData.error;
                 }
             });
+
+            const validTimeEntries = timeEntries.filter(e => !e.error);
+            if (validTimeEntries.length < 2) return;
+
+            // CORRECTED LOGIC: Iterate and compare with the previous entry.
+            for (let i = 1; i < validTimeEntries.length; i++) {
+                const prevEntry = validTimeEntries[i - 1];
+                const currentEntry = validTimeEntries[i];
+
+                const timeAData = dateParser.extractTimeAndText(prevEntry.time);
+                const timeBData = dateParser.extractTimeAndText(currentEntry.time);
+
+                const timeA = parseInt(timeAData.hours, 10) * 60 + parseInt(timeAData.minutes, 10);
+                const timeB = parseInt(timeBData.hours, 10) * 60 + parseInt(timeBData.minutes, 10);
+
+                if (timeB < timeA) {
+                    // Only the current entry is marked as being out of order.
+                    currentEntry.error = "Time is out of chronological order for this day.";
+                }
+            }
         });
     }
 
