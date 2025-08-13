@@ -26,12 +26,12 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             try {
                 if (Object.keys(step2Data).length === 0) {
                      Object.entries(step1Data).forEach(([year, lines]) => {
-                        // Phase 1 is now part of reprocessCurrentYear
-                        step2Data[year] = { rawLines: lines, structuredData: [] };
+                        const rawLinesWithState = lines.map(line => ({ ...line, isEditing: false }));
+                        step2Data[year] = { rawLines: rawLinesWithState, structuredData: [] };
                     });
                 }
                 currentYear = Object.keys(step2Data)[0];
-                reprocessCurrentYear(); // Initial processing and render.
+                reprocessCurrentYear();
             } catch (e) {
                 logger.error("Error during Step 2 initialization", e);
                 ui.showLoading("An error occurred. Please check console.");
@@ -43,35 +43,6 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
     
     function getStep1Data() {
         return (window.appState && window.appState.step1 && window.appState.step1.finalData) || {};
-    }
-
-    function reprocessCurrentYear() {
-        if (!currentYear) return;
-        
-        const yearObject = step2Data[currentYear];
-        const yearForParsing = parseInt(currentYear, 10);
-        
-        // CORRECTED: Use the current state (structuredData) if it exists, otherwise use initial rawLines.
-        // This preserves the `isEditing` flag during reprocessing.
-        const linesToProcess = yearObject.structuredData.length > 0
-            ? yearObject.structuredData
-            : yearObject.rawLines;
-
-        // Phase 1: Re-structure the data. The validator will preserve the `isEditing` flag.
-        yearObject.structuredData = validator.structureData(linesToProcess);
-
-        // Phase 2: Run chronological validation.
-        const { validatedData, totalErrors } = validator.validateChronology(yearObject.structuredData, yearForParsing);
-        yearObject.structuredData = validatedData;
-        
-        let grandTotalErrors = 0;
-        Object.values(step2Data).forEach(yearObj => {
-            const yearNum = Object.keys(step2Data).find(key => step2Data[key] === yearObj);
-            grandTotalErrors += validator.validateChronology(yearObj.structuredData, parseInt(yearNum, 10)).totalErrors;
-        });
-
-        render(); // Single call to render the UI.
-        attachEventListeners(); // Re-attach listeners after render.
     }
 
     /**
@@ -95,6 +66,25 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         renderStickyHeader(totalErrors, grandTotalErrors);
         renderDataContainer();
         updateProceedButton(grandTotalErrors);
+        attachEventListeners();
+    }
+
+    function reprocessCurrentYear() {
+        if (!currentYear) return;
+        
+        const yearObject = step2Data[currentYear];
+        const yearForParsing = parseInt(currentYear, 10);
+        
+        const linesToProcess = yearObject.structuredData.length > 0
+            ? yearObject.structuredData
+            : yearObject.rawLines;
+
+        yearObject.structuredData = validator.structureData(linesToProcess);
+
+        const { validatedData } = validator.validateChronology(yearObject.structuredData, yearForParsing);
+        yearObject.structuredData = validatedData;
+        
+        render();
         attachEventListeners();
     }
 
@@ -171,46 +161,57 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         ui.showLoading("Finalizing all yearly data...");
         setTimeout(() => {
             try {
+                logger.info("Starting finalization process for all years.");
                 const finalOutputData = {}; 
+
+                // A single, authoritative loop to process and convert each year's data.
                 Object.entries(step2Data).forEach(([year, yearObject]) => {
+                    logger.info(`Processing and finalizing year ${year}...`);
                     const yearForParsing = parseInt(year, 10);
-                    const finalEntriesForYear = [];
                     
-                    yearObject.structuredData.forEach(entry => {
+                    // Step 1: Determine the correct source of truth for this year's data
+                    // and run the full structuring/validation pipeline.
+                    const linesToProcess = yearObject.structuredData.length > 0 ? yearObject.structuredData : yearObject.rawLines;
+                    const processedData = validator.structureData(linesToProcess);
+                    const { validatedData } = validator.validateChronology(processedData, yearForParsing);
+                    
+                    // Step 2: Convert the now-validated data into the final ISO format.
+                    const finalEntriesForYear = [];
+                    validatedData.forEach(entry => {
                         if (entry.unrecognized || entry.isDateLine || !entry.date) return;
                         const dateObj = dateParser.parseDate(entry.date, yearForParsing);
-                        if (!dateObj) return;
+                        if (!dateObj || isNaN(dateObj.getTime())) return;
 
                         if (entry.time) {
                             const timeData = dateParser.extractTimeAndText(entry.time);
                             if (timeData && !timeData.error) {
-                                const isoDate = dateParser.buildISOString(
-                                    dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(),
-                                    timeData.hours, timeData.minutes);
+                                const isoDate = dateParser.buildISOString(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), timeData.hours, timeData.minutes);
                                 finalEntriesForYear.push({id: entry.id, isoDate: isoDate, phraseText: timeData.text});
                             }
                         } else if (entry.note) {
-                             const isoDate = dateParser.buildISOString(
-                                dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), '00', '00');
+                             const isoDate = dateParser.buildISOString(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate(), '00', '00');
                             finalEntriesForYear.push({id: entry.id, isoDate: isoDate, note: entry.note});
                         }
                     });
+
                     finalOutputData[year] = finalEntriesForYear;
+                    logger.info(`Successfully finalized ${finalEntriesForYear.length} entries for year ${year}.`);
                 });
                 
                 if (!window.appState.step2) window.appState.step2 = {};
                 window.appState.step2.finalData = finalOutputData;
 
                 ui.hideLoading();
+                logger.info("All data finalized. Navigating to Step 3.");
                 if (window.navigationCallback) window.navigationCallback(3);
+
             } catch(e) {
                 ui.hideLoading();
                 logger.error("A critical error occurred during data finalization.", e);
                 alert("An error occurred during finalization. Please check the console for details.");
             }
         }, 100);
-    }        
-
+    }
     function attachEventListeners() {
         const header = selectors.stickyHeader;
         const container = selectors.dataContainer;        
@@ -235,8 +236,11 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         container.on('click', '.cancel-btn', function() {
             const itemId = $(this).data('id');
             const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
-            if (item) item.isEditing = false;
-            reprocessCurrentYear();
+            if (item) {
+                item.isEditing = false;
+            }
+            render(); // Just re-render, no need to reprocess everything.
+            attachEventListeners();
         });         
 
         container.on('click', '.data-row', function(event) {
@@ -245,7 +249,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
             if (item && !item.isEditing) {
                 item.isEditing = true;
-                render(); // Just re-render the UI, don't re-validate everything
+                render();
                 attachEventListeners();
             }
         });
@@ -272,11 +276,11 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         header.on('click', '#step2-edit-btn', function() {
             if ($(this).is(':disabled')) return;
             container.find('input:checked').each(function() {
-                const itemId = $(this).data('id');
-                const item = step2Data[currentYear].structuredData.find(d => d.id === itemId);
+                const item = step2Data[currentYear].structuredData.find(d => d.id === $(this).data('id'));
                 if (item) item.isEditing = true;
             });
-            reprocessCurrentYear();
+            render();
+            attachEventListeners();
         });
 
         header.on('click', '#step2-delete-btn', function() {
@@ -300,18 +304,9 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             });
             checkedIndices.sort((a,b) => a - b);
             if (isMoveUp) {
-                for (const index of checkedIndices) {
-                    if (index > 0) {
-                        [currentData[index - 1], currentData[index]] = [currentData[index], currentData[index - 1]];
-                    }
-                }
+                for (const index of checkedIndices) { if (index > 0) [currentData[index - 1], currentData[index]] = [currentData[index], currentData[index - 1]]; }
             } else {
-                for (let i = checkedIndices.length - 1; i >= 0; i--) {
-                    const index = checkedIndices[i];
-                    if (index < currentData.length - 1) {
-                         [currentData[index], currentData[index + 1]] = [currentData[index + 1], currentData[index]];
-                    }
-                }
+                for (let i = checkedIndices.length - 1; i >= 0; i--) { const index = checkedIndices[i]; if (index < currentData.length - 1) [currentData[index], currentData[index + 1]] = [currentData[index + 1], currentData[index]]; }
             }
             reprocessCurrentYear();
         });
@@ -322,10 +317,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             const errorElements = container.find('.row-error').get();
             if (errorElements.length === 0) return;
             let currentVisibleIndex = -1;
-            for (let i = 0; i < errorElements.length; i++) {
-                const rect = errorElements[i].getBoundingClientRect();
-                if (rect.top >= 0 && rect.top <= window.innerHeight) { currentVisibleIndex = i; break; }
-            }
+            for (let i = 0; i < errorElements.length; i++) { if (errorElements[i].getBoundingClientRect().top >= 0) { currentVisibleIndex = i; break; } }
             let targetIndex;
             if (isNext) {
                 targetIndex = currentVisibleIndex > -1 ? (currentVisibleIndex + 1) % errorElements.length : 0;
