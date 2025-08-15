@@ -113,8 +113,20 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             <div class="row g-2 align-items-center">
                 <div class="col-auto"><label for="step2-year-select" class="form-label mb-0">Year:</label><select id="step2-year-select" class="form-select form-select-sm w-auto">${options}</select></div>
                 <div class="col-auto"><span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues this year / ${totalErrorCount} total</span></div>
-                <div class="col"><button id="step2-prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button><button id="step2-next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button></div>
-                <div class="col-auto ms-auto"><button id="step2-move-up-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Up"><i class="fas fa-chevron-up"></i></button><button id="step2-move-down-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Down"><i class="fas fa-chevron-down"></i></button><button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button><button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button><button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button></div>
+                <div class="col">
+                    <button id="step2-prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
+                    <button id="step2-next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
+                </div>
+                <div class="col-auto ms-auto d-flex gap-2">
+                    <!-- ADDED: Save/Load Buttons -->
+                    <input type="file" id="step2-load-input" class="d-none" accept=".json">
+                    <label for="step2-load-input" class="btn btn-sm btn-outline-secondary" title="Load Step 2 Data"><i class="fas fa-upload me-2"></i>Load</label>
+                    <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data"><i class="fas fa-download me-2"></i>Save</button>
+                    <!-- END ADDED -->
+                    <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button>
+                    <button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
+                    <button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
+                </div>
             </div>
             <div id="step2-top-proceed" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
@@ -122,7 +134,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
 
     function renderDataContainer() {
         selectors.dataContainer.empty();
-        if (!step2Data[currentYear]) return;
+        if (!step2Data[currentYear] || !step2Data[currentYear].structuredData) return;
         step2Data[currentYear].structuredData.forEach(item => {
             selectors.dataContainer.append(renderRow(item));
         });
@@ -136,11 +148,9 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         if (item.note) lineClass += ' comment-text';
 
         if (item.isEditing) {
-            contentHtml = `
-                <div class="row-content w-100"><textarea class="editable-textarea" rows="1">${item.rawText}</textarea><div class="d-flex justify-content-end align-items-center mt-1"><button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button><button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button></div></div>`;
+            contentHtml = `<div class="row-content w-100"><textarea class="editable-textarea" rows="1">${item.rawText}</textarea><div class="d-flex justify-content-end align-items-center mt-1"><button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button><button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button></div></div>`;
         } else {
-            contentHtml = `
-                <div class="row-content w-100"><span class="${lineClass}">${item.rawText || ' '}</span>${item.error ? `<div class="error-message">${item.error}</div>` : ''}</div>`;
+            contentHtml = `<div class="row-content w-100"><span class="${lineClass}">${item.rawText || ' '}</span>${item.error ? `<div class="error-message">${item.error}</div>` : ''}</div>`;
         }
         
         return `<div id="${item.id}" class="list-group-item data-row ${rowClass}"><input class="form-check-input" type="checkbox" data-id="${item.id}">${contentHtml}</div>`;
@@ -223,6 +233,65 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             currentYear = $(this).val();
             reprocessCurrentYear();
         });
+
+        header.on('click', '#step2-save-btn', function() {
+            logger.info("Saving Step 2 state.");
+            const stateToSave = {
+                step: 2,
+                data: {}
+            };
+
+            // Package the data from all years
+            Object.entries(step2Data).forEach(([year, yearObject]) => {
+                const lines = yearObject.structuredData.length > 0 ? yearObject.structuredData : yearObject.rawLines;
+                stateToSave.data[year] = lines.map(item => ({ id: item.id, rawText: item.rawText }));
+            });
+
+            const dataStr = JSON.stringify(stateToSave, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const timestamp = new Date().toISOString().slice(0, 10);
+            a.download = `Step2_progress_${timestamp}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // --- NEW: LOAD BUTTON HANDLER ---
+        header.on('change', '#step2-load-input', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const loadedState = JSON.parse(e.target.result);
+                    if (loadedState.step !== 2 || !loadedState.data) {
+                        throw new Error("Invalid Step 2 file format.");
+                    }
+
+                    logger.info("Loading Step 2 data from file.");
+                    step2Data = {}; // Clear existing data
+
+                    Object.entries(loadedState.data).forEach(([year, lines]) => {
+                        step2Data[year] = {
+                            rawLines: [], // Raw lines are now superseded by the loaded data
+                            structuredData: lines.map(line => ({ ...line, isEditing: false }))
+                        };
+                    });
+
+                    currentYear = Object.keys(step2Data)[0];
+                    reprocessCurrentYear(); // Reprocess and render the loaded data
+
+                } catch (err) {
+                    logger.error("Failed to load Step 2 state", err);
+                    alert(`Error: Could not load file. ${err.message}`);
+                }
+            };
+            reader.readAsText(file);
+            $(this).val(''); // Reset input
+        });        
 
         container.on('click', '.ok-btn', function() {
             const itemId = $(this).data('id');
