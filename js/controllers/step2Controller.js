@@ -212,6 +212,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             }
         }, 100);
     }
+    
     function attachEventListeners() {
         const header = selectors.stickyHeader;
         const container = selectors.dataContainer;        

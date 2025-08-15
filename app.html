@@ -126,24 +126,35 @@
 
 
 
-<!-- ===== STEP 3: DATA VIEWER (Simplified) ===== -->
-<div id="step-3-content" class="app-step" style="display: none;">
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">Step 3: Data Received from Step 2</h5>
-            <p class="card-text text-body-secondary">This is the raw, cleaned, and chronologically sorted data that has been prepared for phrase grouping. If you see data here, the transition from Step 2 was successful.</p>
-            
-            <!-- A simple container to display the raw data -->
-            <pre id="step3-data-display" class="form-control" style="min-height: 400px; white-space: pre-wrap;"></pre>
-            
-            <div id="step3-bottom-proceed" class="text-center mt-3">
-                 <button id="proceed-to-step4-btn" class="btn btn-lg btn-primary" disabled>
-                    Proceed to Step 4 <i class="fas fa-arrow-right"></i>
+            <!-- ===== STEP 3: group phrases ===== -->
+            <div id="step-3-content" class="app-step" style="display: none;">
+                <!-- Sticky Header for Global Actions -->
+                <div id="step3-sticky-header" class="sticky-top bg-dark py-2 mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <h5 class="mb-0 me-3">Step 3: Group Similar Phrases</h5>
+                        <input type="text" id="step3-search-input" class="form-control form-control-sm w-auto" placeholder="Search groups or tags...">
+                        <div class="ms-auto d-flex gap-2">
+                            <input type="file" id="upload-step3-state" class="d-none">
+                            <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Groups"><i class="fas fa-upload me-2"></i>Load</label>
+                            <button id="download-step3-state" class="btn btn-sm btn-outline-secondary" title="Save Step 3 Groups"><i class="fas fa-download me-2"></i>Save</button>
+                            <button id="step3-proceed-top" class="btn btn-sm btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Main Container for Phrase Group Cards -->
+                <div id="phrase-groups-container">
+                    <!-- Group cards will be dynamically inserted here by step3Controller.js -->
+                </div>
+
+                <!-- Floating Action Button to Add a New Group -->
+                <button id="step3-add-group-btn" class="btn btn-lg btn-success rounded-circle" title="Add New Group">
+                    <i class="fas fa-plus"></i>
                 </button>
-            </div>
-        </div>
-    </div>
-</div>
+                
+                <!-- Bottom Proceed Button -->
+                 <div class="text-center mt-4">
+                    <button id="step3-proceed-bottom" class="btn btn-lg btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
+                </div>                
 
            
         </div>

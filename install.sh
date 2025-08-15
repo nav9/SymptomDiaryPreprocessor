@@ -8,16 +8,12 @@ echo "Starting project setup..."
 # Using specific versions for stability, but you can change them to 'latest' if needed.
 BOOTSTRAP_VERSION="5.3.3"
 JQUERY_VERSION="3.7.1"
+JQUERY_UI_VERSION="1.13.2"
 FONT_AWESOME_VERSION="6.5.2"
 
 # --- Directory Creation ---
 echo "Creating project directories..."
-mkdir -p css
-mkdir -p js
-mkdir -p data
-mkdir -p lib/bootstrap
-mkdir -p lib/jquery
-mkdir -p lib/fontawesome
+mkdir -p css js data lib/bootstrap lib/jquery lib/fontawesome
 echo "Directories created successfully."
 
 # --- Helper Function for Downloading ---
