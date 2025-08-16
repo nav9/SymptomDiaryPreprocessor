@@ -109,6 +109,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
         const nextPrevDisabled = currentYearErrorCount < 2 ? 'disabled' : '';
         
+        // The container for the top proceed button is now part of the static layout.
         const headerHtml = `
             <div class="row g-2 align-items-center">
                 <div class="col-auto"><label for="step2-year-select" class="form-label mb-0">Year:</label><select id="step2-year-select" class="form-select form-select-sm w-auto">${options}</select></div>
@@ -118,7 +119,6 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
                     <button id="step2-next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
                 </div>
                 <div class="col-auto ms-auto d-flex gap-2">
-                    <!-- This Load button is always rendered, fulfilling the requirement -->
                     <input type="file" id="step2-load-input" class="d-none" accept=".json">
                     <label for="step2-load-input" class="btn btn-sm btn-outline-secondary" title="Load Step 2 Data"><i class="fas fa-upload me-2"></i>Load</label>
                     <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data"><i class="fas fa-download me-2"></i>Save</button>
@@ -130,6 +130,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             <div id="step2-top-proceed" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
     }
+    
 
     function renderDataContainer() {
         selectors.dataContainer.empty();
@@ -156,12 +157,17 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
     }
     
     function updateProceedButton(totalErrorCount) {
-        const proceedBtn = `<button id="proceed-to-step3-btn" class="btn btn-lg btn-primary">Finalize & Proceed to Step 3 <i class="fas fa-arrow-right"></i></button>`;
+        const proceedBtnHtml = `<button id="proceed-to-step3-btn" class="btn btn-lg btn-primary">Finalize & Proceed to Step 3 <i class="fas fa-arrow-right"></i></button>`;
+        
+        // Target the container inside the sticky header specifically.
+        const topContainer = $('#step2-top-proceed');
+
         if (totalErrorCount === 0 && Object.keys(step2Data).length > 0) {
-            selectors.topProceedContainer.html(proceedBtn);
-            selectors.bottomProceedContainer.html(proceedBtn);
+            // Use a smaller button for the top bar.
+            topContainer.html(proceedBtnHtml.replace('btn-lg', 'btn-sm'));
+            selectors.bottomProceedContainer.html(proceedBtnHtml);
         } else {
-            selectors.topProceedContainer.empty();
+            topContainer.empty();
             selectors.bottomProceedContainer.empty();
         }
     }

@@ -34,7 +34,6 @@ const Step3Controller = (function(logger, ui, phraseService) {
         }
     }
 
-    /** Processes fresh data from Step 2. */
     function processNewData(dataFromStep2) {
         ui.showLoading("Extracting unique phrases...");
         setTimeout(() => {
@@ -43,10 +42,13 @@ const Step3Controller = (function(logger, ui, phraseService) {
             ui.showLoading("Applying automatic tagging...");
             applyHeuristics();
 
+            // CORRECTED: Run merge check immediately after applying heuristics.
+            ui.showLoading("Merging adjacent tags...");
+            checkForMerges();
+
             ui.showLoading("Sorting phrases for layout...");
             originalPhrases = phraseService.sortCardsSpatially(originalPhrases);
             
-            checkForMerges();
             render();
             attachEventListeners();
             ui.hideLoading();
@@ -152,62 +154,72 @@ const Step3Controller = (function(logger, ui, phraseService) {
         const lowerCaseTag = fullTagText.toLowerCase();
         const isSelected = clickedTag.hasClass('tag-selected');
 
-        // --- Action: Un-select / Split ---
         if (isSelected) {
             tagState.delete(lowerCaseTag);
-        } 
-        // --- Action: Select ---
-        else {
+        } else {
             tagState.set(lowerCaseTag, { alias: '' });
-            // After selecting, we must check for potential merges globally.
-            // A full state check is the most robust way to handle this.
-            checkForMerges();
+            checkForMerges(); // Check for new merges after any selection
         }
-
-        // --- Final Step: Re-render the entire UI ---
-        // A full re-render ensures global selections, merges, and splits are synced.
-        render();
+        render(); // Always re-render to ensure global consistency
     }
 
     function checkForMerges() {
-        let wasMerged = false;
-        originalPhrases.forEach(phrase => {
-            const tokens = phraseService.tokenizePhrase(phrase.text);
-            for (let i = 0; i < tokens.length - 1; i++) {
-                if (!tokens[i].isWord) continue;
-
-                // Find the next word token, skipping whitespace
-                let nextWordIndex = -1;
-                let spaceBetween = '';
-                for (let j = i + 1; j < tokens.length; j++) {
-                    if(tokens[j].isWord) {
-                        nextWordIndex = j;
-                        break;
-                    }
-                    spaceBetween += tokens[j].text;
-                }
-                if (nextWordIndex === -1) continue;
+        let stateModified;
+        do {
+            stateModified = false;
+            const newTagState = new Map(tagState);
+            
+            // This loop must run on the original phrase text, not the rendered tags.
+            for (const phrase of originalPhrases) {
+                const tokens = phraseService.tokenizePhrase(phrase.text);
                 
-                const tag1 = tokens[i].text;
-                const tag2 = tokens[nextWordIndex].text;
+                for (let i = 0; i < tokens.length; i++) {
+                    if (!tokens[i].isWord) continue;
+                    
+                    const firstWord = tokens[i].text.toLowerCase();
+                    if (!newTagState.has(firstWord)) continue;
 
-                // Check if both individual tags are selected
-                if (tagState.has(tag1.toLowerCase()) && tagState.has(tag2.toLowerCase())) {
-                    const mergedTagText = `${tag1}${spaceBetween}${tag2}`;
-                    
-                    // Update global state: remove old tags, add new one
-                    tagState.delete(tag1.toLowerCase());
-                    tagState.delete(tag2.toLowerCase());
-                    tagState.set(mergedTagText.toLowerCase(), { alias: '' });
-                    
-                    wasMerged = true;
-                    // Restart the check from the beginning since the state has changed
-                    return checkForMerges();
+                    // Build a chain of adjacent selected tags
+                    let chain = [tokens[i]];
+                    let currentChainText = tokens[i].text;
+                    let lastWordIndex = i;
+
+                    for (let j = i + 1; j < tokens.length; j++) {
+                        const token = tokens[j];
+                        if (token.isWord) {
+                            const nextWord = (currentChainText + token.text).toLowerCase();
+                            // This is incorrect logic. Need to check if the next word *itself* is a tag.
+                            const nextWordAlone = token.text.toLowerCase();
+                            if (newTagState.has(nextWordAlone)) {
+                                 // Add the space(s) and the word to the chain
+                                for (let k = lastWordIndex + 1; k < j; k++) {
+                                    chain.push(tokens[k]);
+                                }
+                                chain.push(token);
+                                lastWordIndex = j;
+                            } else {
+                                break; // Chain is broken
+                            }
+                        }
+                    }
+
+                    if (chain.filter(t => t.isWord).length > 1) {
+                        const componentTags = chain.filter(t => t.isWord).map(t => t.text.toLowerCase());
+                        const mergedTagText = chain.map(t => t.text).join('');
+                        
+                        // Modify the tag state
+                        componentTags.forEach(tag => newTagState.delete(tag));
+                        newTagState.set(mergedTagText.toLowerCase(), { alias: '' });
+                        
+                        tagState = newTagState;
+                        stateModified = true;
+                        break; // Restart the entire process with the new state
+                    }
                 }
+                if (stateModified) break;
             }
-        });
-        return wasMerged;
-    }    
+        } while (stateModified);
+    }  
     
     /** Checks for and performs tag merging within a card. */
     function attemptMergeOnCard(card) {
