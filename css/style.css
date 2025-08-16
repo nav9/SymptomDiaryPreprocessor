@@ -251,108 +251,68 @@ main {
 }
 
 
-/* --- Step 3: Phrase Grouping Interface --- */
+/* --- ADD NEW STEP 3 STYLES --- */
 #step3-sticky-header {
     top: 56px; /* Adjust based on navbar height */
-    z-index: 1020; /* Above group cards but below modals */
+    z-index: 1020;
     background-color: var(--bs-body-bg);
     border-bottom: 1px solid var(--bs-card-border-color);
 }
 
-#phrase-groups-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
+#phrase-cards-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
 }
 
-.group-card {
+.phrase-card {
     background-color: var(--bs-card-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: 0.375rem;
-    display: flex;
-    flex-direction: column;
-    transition: box-shadow 0.2s;
-}
-.group-card:hover {
-    box-shadow: 0 0 10px rgba(var(--bs-primary-rgb), 0.3);
-}
-
-.group-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--bs-border-color);
+    line-height: 1.8;
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
-.group-title {
-    font-size: 0.9rem;
-    font-weight: bold;
-    margin: 0;
-    flex-grow: 1;
-    cursor: text;
+.word-tag {
+    background-color: #495057; /* Dark grey */
+    color: #dee2e6;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    position: relative;
+    white-space: nowrap;
 }
-.group-title:focus {
-    outline: 1px solid var(--bs-primary);
-    background-color: var(--bs-tertiary-bg);
-}
-
-.group-card-body {
-    padding: 0.75rem;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
+.word-tag:hover {
+    background-color: #6c757d;
 }
 
-.phrase-tags-container {
-    flex-grow: 1;
-    min-height: 50px;
-    padding: 4px;
-    border-radius: 4px;
-    border: 1px dashed transparent;
-    transition: background-color 0.2s, border-color 0.2s;
-}
-
-.phrase-tag {
-    display: inline-block;
-    background-color: var(--bs-primary);
+.word-tag.tag-selected {
+    background-color: var(--bs-primary); /* Blue */
     color: white;
-    padding: 0.2rem 0.6rem;
-    border-radius: 1rem;
-    margin: 0.2rem;
-    cursor: grab;
-    font-size: 0.85rem;
-    transition: background-color 0.2s, transform 0.1s;
 }
-.phrase-tag:hover {
-    background-color: #0b5ed7; /* Darker primary */
-}
-.phrase-tag:active {
-    cursor: grabbing;
-    transform: scale(1.05);
+.word-tag.tag-selected:hover {
+    background-color: #0b5ed7; /* Darker blue */
 }
 
-.add-phrase-form {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-    border-top: 1px solid var(--bs-border-color);
-    padding-top: 0.5rem;
+.whitespace {
+    user-select: none; /* Prevent selecting the space between words */
 }
 
-/* Drag and Drop Styles */
-.drop-zone.drop-hover {
-    background-color: rgba(var(--bs-primary-rgb), 0.1);
-    border-color: var(--bs-primary);
+.alias-icon {
+    font-size: 0.7em;
+    margin-left: 4px;
+    opacity: 0.4;
+    transition: opacity 0.2s;
 }
-.dragging-tag {
-    z-index: 9999 !important;
-    transform: rotate(3deg);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+.word-tag:hover .alias-icon {
+    opacity: 1;
 }
 
-/* Floating Action Button */
-#step3-add-group-btn {
+#step3-add-phrase-btn {
     position: fixed;
     bottom: 20px;
     right: 20px;

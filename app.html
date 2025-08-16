@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="lib/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="lib/fontawesome/all.min.css">
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="lib/jquery/jquery-ui.css">
 </head>
 
 <body>
@@ -126,35 +125,32 @@
 
 
 
-            <!-- ===== STEP 3: group phrases ===== -->
+            <!-- ===== STEP 3: tag phrases ===== -->
             <div id="step-3-content" class="app-step" style="display: none;">
-                <!-- Sticky Header for Global Actions -->
                 <div id="step3-sticky-header" class="sticky-top bg-dark py-2 mb-3">
                     <div class="d-flex align-items-center gap-2">
-                        <h5 class="mb-0 me-3">Step 3: Group Similar Phrases</h5>
-                        <input type="text" id="step3-search-input" class="form-control form-control-sm w-auto" placeholder="Search groups or tags...">
+                        <h5 class="mb-0 me-3">Step 3: Select Tags</h5>
                         <div class="ms-auto d-flex gap-2">
-                            <input type="file" id="upload-step3-state" class="d-none">
-                            <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Groups"><i class="fas fa-upload me-2"></i>Load</label>
-                            <button id="download-step3-state" class="btn btn-sm btn-outline-secondary" title="Save Step 3 Groups"><i class="fas fa-download me-2"></i>Save</button>
+                            <input type="file" id="upload-step3-state" class="d-none" accept=".json">
+                            <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Tags"><i class="fas fa-upload me-2"></i>Load</label>
+                            <button id="download-step3-state" class="btn btn-sm btn-outline-secondary" title="Save Step 3 Tags"><i class="fas fa-download me-2"></i>Save</button>
                             <button id="step3-proceed-top" class="btn btn-sm btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
                 </div>
-                <!-- Main Container for Phrase Group Cards -->
-                <div id="phrase-groups-container">
-                    <!-- Group cards will be dynamically inserted here by step3Controller.js -->
+
+                <div id="phrase-cards-container">
+                    <!-- Phrase cards will be dynamically inserted here -->
                 </div>
 
-                <!-- Floating Action Button to Add a New Group -->
-                <button id="step3-add-group-btn" class="btn btn-lg btn-success rounded-circle" title="Add New Group">
+                <button id="step3-add-phrase-btn" class="btn btn-lg btn-success rounded-circle" title="Add New Phrase">
                     <i class="fas fa-plus"></i>
                 </button>
                 
-                <!-- Bottom Proceed Button -->
                  <div class="text-center mt-4">
                     <button id="step3-proceed-bottom" class="btn btn-lg btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
-                </div>                
+                </div>
+            </div>           
 
            
         </div>
@@ -171,7 +167,6 @@
     </div>
     
     <script src="lib/jquery/jquery.min.js"></script>
-    <script src="lib/jquery/jquery-ui.min.js"></script>
     <script src="lib/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/logger.js"></script>
     <script src="js/dummy-data.js"></script>
