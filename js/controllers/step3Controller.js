@@ -154,13 +154,21 @@ const Step3Controller = (function(logger, ui, phraseService) {
         const fullTagText = unescape(clickedTag.data('tag-text'));
         const lowerCaseTag = fullTagText.toLowerCase();
         const isSelected = clickedTag.hasClass('tag-selected');
+        const card = clickedTag.closest('.phrase-card');
 
         if (isSelected) {
+            // UN-SELECTING: Delete the tag and let its words become individual grey tags.
             tagState.delete(lowerCaseTag);
         } else {
-            tagState.set(lowerCaseTag, { alias: '' });
-            checkForMerges();
+            // SELECTING: Add the tag.
+            tagState.set(lowerCaseTag, tagState.get(lowerCaseTag) || { alias: '' });
         }
+        
+        // Post-Action: Always check for new merges on the card.
+        const merged = attemptMergeOnCard(card);
+        
+        // Final Step: Re-render everything to sync global state.
+        // If a merge happened, it will be reflected. If not, the simple select/unselect will be.
         render();
     }
 
@@ -313,10 +321,36 @@ const Step3Controller = (function(logger, ui, phraseService) {
             reader.onload = (event) => {
                 try {
                     const savedState = JSON.parse(event.target.result);
-                    if (savedState.phrases && savedState.tags) {
-                        loadState(savedState);
-                    } else { throw new Error("Invalid format"); }
-                } catch (err) { alert("Error: Could not parse the Step 3 file."); }
+                    if (!savedState.phrases || !savedState.tags) throw new Error("Invalid format");
+
+                    const performLoad = (mode) => {
+                        if (mode === 'replace') {
+                            loadState(savedState);
+                        } else if (mode === 'merge') {
+                            // Merge Phrases (unique by text)
+                            const existingPhrases = new Map(originalPhrases.map(p => [p.text, p]));
+                            savedState.phrases.forEach(p => {
+                                if (!existingPhrases.has(p.text)) {
+                                    originalPhrases.push(p);
+                                }
+                            });
+                            // Merge Tags (existing tags take priority)
+                            const loadedTags = new Map(savedState.tags);
+                            loadedTags.forEach((value, key) => {
+                                if (!tagState.has(key)) {
+                                    tagState.set(key, value);
+                                }
+                            });
+                            render();
+                        }
+                    };
+                    
+                    if (originalPhrases.length > 0) {
+                        ui.showMergeConflictModal(choice => performLoad(choice));
+                    } else {
+                        performLoad('replace');
+                    }
+                } catch (err) { /* ... */ }
             };
             reader.readAsText(file);
             $(this).val('');

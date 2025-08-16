@@ -1,4 +1,4 @@
-const Step1Controller = (function(logger, recognizer) {
+const Step1Controller = (function(logger, recognizer, ui) {
 
     const selectors = {
         initialLoadSection: $('#initial-load-section'),
@@ -21,6 +21,15 @@ const Step1Controller = (function(logger, recognizer) {
         attachEventListeners();
     }
     
+    // This is the function that is now called by the load handler
+    function loadData(files) {
+        ui.showLoading("Processing files...");
+        setTimeout(() => {
+            handleDataLoad(files);
+            ui.hideLoading();
+        }, 50);
+    }
+
     function handleDataLoad(files) {
         Object.keys(yearlyData).forEach(key => delete yearlyData[key]);
 
@@ -203,7 +212,38 @@ const Step1Controller = (function(logger, recognizer) {
 
         selectors.fileUpload.on('change', function(event) {
             if (!event.target.files.length) return;
-            Promise.all(fileDataPromises(event.target.files)).then(handleDataLoad);
+            const fileReadPromises = Array.from(event.target.files).map(file => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve({ fileName: file.name, content: e.target.result });
+                reader.onerror = reject;
+                reader.readAsText(file);
+            }));            
+            Promise.all(fileReadPromises).then(loadedFiles => {
+                if (Object.keys(yearlyData).length > 0) {
+                    ui.showMergeConflictModal(choice => {
+                        if (choice === 'replace') {
+                            // Clear existing data before loading
+                            Object.keys(yearlyData).forEach(key => delete yearlyData[key]);
+                            loadData(loadedFiles);
+                        } else if (choice === 'merge') {
+                            // Merge logic for Step 1
+                            loadedFiles.forEach(file => {
+                                const yearMatch = file.fileName.match(/\d{4}/);
+                                const year = yearMatch ? yearMatch[0] : 'Unsorted';
+                                // Only add the year if it doesn't already exist
+                                if (!yearlyData[year]) {
+                                     handleDataLoad([file]); // Use handleDataLoad to process and add the new year
+                                }
+                            });
+                            validateAndRender(); // Re-validate after merge
+                        }
+                    });
+                } else {
+                    // If no data exists, load directly
+                    loadData(loadedFiles);
+                }
+            });
+            $(this).val(''); // Reset file input
         });
         selectors.loadDummyBtn.on('click', () => handleDataLoad(dummyData));
 
@@ -397,4 +437,4 @@ const Step1Controller = (function(logger, recognizer) {
 
     return { init };
 
-})(logger, LineRecognizerService);
+})(logger, LineRecognizerService, uiService); // Added uiService

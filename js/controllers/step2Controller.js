@@ -16,29 +16,24 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         window.navigationCallback = navCallback;
         const step1Data = getStep1Data();
 
-        if (Object.keys(step1Data).length === 0) {
-            selectors.dataContainer.html('<div class="alert alert-warning">No data from Step 1. Please go back.</div>');
-            return;
-        }
-
-        ui.showLoading("Structuring and validating data...");
-        setTimeout(() => {
-            try {
-                if (Object.keys(step2Data).length === 0) {
-                     Object.entries(step1Data).forEach(([year, lines]) => {
-                        const rawLinesWithState = lines.map(line => ({ ...line, isEditing: false }));
-                        step2Data[year] = { rawLines: rawLinesWithState, structuredData: [] };
-                    });
-                }
+        // This logic ensures that data from Step 1 is only processed if the user
+        // hasn't already loaded data directly into Step 2.
+        if (Object.keys(step1Data).length > 0 && Object.keys(step2Data).length === 0) {
+            ui.showLoading("Structuring data from Step 1...");
+            setTimeout(() => {
+                Object.entries(step1Data).forEach(([year, lines]) => {
+                    const rawLinesWithState = lines.map(line => ({ ...line, isEditing: false }));
+                    step2Data[year] = { rawLines: rawLinesWithState, structuredData: [] };
+                });
                 currentYear = Object.keys(step2Data)[0];
                 reprocessCurrentYear();
-            } catch (e) {
-                logger.error("Error during Step 2 initialization", e);
-                ui.showLoading("An error occurred. Please check console.");
-            } finally {
                 ui.hideLoading();
-            }
-        }, 50);
+            }, 50);
+        } else {
+            // CORRECTED: If there's no Step 1 data, or if Step 2 already has data,
+            // proceed to render the interface anyway. This makes the "Load" button visible.
+            reprocessCurrentYear();
+        }
     }
     
     function getStep1Data() {
@@ -70,20 +65,18 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
     }
 
     function reprocessCurrentYear() {
-        if (!currentYear) return;
+        // If there's a year with data, process it.
+        if (currentYear && step2Data[currentYear]) {
+            const yearObject = step2Data[currentYear];
+            const yearForParsing = parseInt(currentYear, 10);
+            
+            const linesToProcess = yearObject.structuredData.length > 0 ? yearObject.structuredData : yearObject.rawLines;
+            yearObject.structuredData = validator.structureData(linesToProcess);
+            const { validatedData } = validator.validateChronology(yearObject.structuredData, yearForParsing);
+            yearObject.structuredData = validatedData;
+        }
         
-        const yearObject = step2Data[currentYear];
-        const yearForParsing = parseInt(currentYear, 10);
-        
-        const linesToProcess = yearObject.structuredData.length > 0
-            ? yearObject.structuredData
-            : yearObject.rawLines;
-
-        yearObject.structuredData = validator.structureData(linesToProcess);
-
-        const { validatedData } = validator.validateChronology(yearObject.structuredData, yearForParsing);
-        yearObject.structuredData = validatedData;
-        
+        // Always render the UI and attach listeners, even if there's no data.
         render();
         attachEventListeners();
     }
@@ -93,26 +86,28 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         let totalErrors = 0;
         let grandTotalErrors = 0;
 
-        if (step2Data[currentYear]) {
+        if (currentYear && step2Data[currentYear] && step2Data[currentYear].structuredData) {
             totalErrors = step2Data[currentYear].structuredData.filter(item => item.error).length;
-            grandTotalErrors = Object.values(step2Data).reduce((acc, yearObj) => acc + yearObj.structuredData.filter(item => item.error).length, 0);
+            grandTotalErrors = Object.values(step2Data).reduce((acc, yearObj) => {
+                return acc + (yearObj.structuredData ? yearObj.structuredData.filter(item => item.error).length : 0);
+            }, 0);
         }
 
         renderStickyHeader(totalErrors, grandTotalErrors);
         renderDataContainer();
         updateProceedButton(grandTotalErrors);
-    }    
+    } 
 
     function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
-        const years = Object.keys(step2Data).sort();
+        // This function now correctly handles having no years of data.
+        const years = Object.keys(step2Data);
         const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
         const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
         const nextPrevDisabled = currentYearErrorCount < 2 ? 'disabled' : '';
         
-        // The container for the top proceed button is now part of the static layout.
         const headerHtml = `
             <div class="row g-2 align-items-center">
-                <div class="col-auto"><label for="step2-year-select" class="form-label mb-0">Year:</label><select id="step2-year-select" class="form-select form-select-sm w-auto">${options}</select></div>
+                <div class="col-auto"><label for="step2-year-select" class="form-label mb-0">Year:</label><select id="step2-year-select" class="form-select form-select-sm w-auto" ${years.length === 0 ? 'disabled' : ''}>${options}</select></div>
                 <div class="col-auto"><span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues this year / ${totalErrorCount} total</span></div>
                 <div class="col">
                     <button id="step2-prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
@@ -121,8 +116,8 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
                 <div class="col-auto ms-auto d-flex gap-2">
                     <input type="file" id="step2-load-input" class="d-none" accept=".json">
                     <label for="step2-load-input" class="btn btn-sm btn-outline-secondary" title="Load Step 2 Data"><i class="fas fa-upload me-2"></i>Load</label>
-                    <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data"><i class="fas fa-download me-2"></i>Save</button>
-                    <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button>
+                    <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data" ${years.length === 0 ? 'disabled' : ''}><i class="fas fa-download me-2"></i>Save</button>
+                    <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line" ${years.length === 0 ? 'disabled' : ''}><i class="fas fa-plus"></i></button>
                     <button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
                     <button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
                 </div>
@@ -134,7 +129,11 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
 
     function renderDataContainer() {
         selectors.dataContainer.empty();
-        if (!step2Data[currentYear] || !step2Data[currentYear].structuredData) return;
+        // If there's no current year selected (because there's no data), show the message.
+        if (!currentYear || !step2Data[currentYear]) {
+            selectors.dataContainer.html('<div class="alert alert-info">No data loaded. Please return to Step 1 or load a Step 2 file to begin.</div>');
+            return;
+        }
         step2Data[currentYear].structuredData.forEach(item => {
             selectors.dataContainer.append(renderRow(item));
         });
@@ -272,31 +271,40 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
             reader.onload = e => {
                 try {
                     const loadedState = JSON.parse(e.target.result);
-                    if (loadedState.step !== 2 || !loadedState.data) {
-                        throw new Error("Invalid Step 2 file format.");
+                    if (loadedState.step !== 2 || !loadedState.data) throw new Error("Invalid Step 2 file format.");
+
+                    const performLoad = (mode) => {
+                        if (mode === 'replace') {
+                            step2Data = {}; // Clear existing data
+                        }
+                        
+                        Object.entries(loadedState.data).forEach(([year, lines]) => {
+                            // For merge, only add if the year doesn't already exist
+                            if (!step2Data[year]) {
+                                step2Data[year] = {
+                                    rawLines: [],
+                                    structuredData: lines.map(line => ({ ...line, isEditing: false }))
+                                };
+                            }
+                        });
+
+                        currentYear = Object.keys(step2Data)[0];
+                        reprocessCurrentYear();
+                    };
+
+                    if (Object.keys(step2Data).length > 0) {
+                        ui.showMergeConflictModal(choice => {
+                            performLoad(choice);
+                        });
+                    } else {
+                        performLoad('replace'); // Default to replace if no data exists
                     }
 
-                    logger.info("Loading Step 2 data from file.");
-                    step2Data = {}; // Clear existing data
-
-                    Object.entries(loadedState.data).forEach(([year, lines]) => {
-                        step2Data[year] = {
-                            rawLines: [], // Raw lines are now superseded by the loaded data
-                            structuredData: lines.map(line => ({ ...line, isEditing: false }))
-                        };
-                    });
-
-                    currentYear = Object.keys(step2Data)[0];
-                    reprocessCurrentYear(); // Reprocess and render the loaded data
-
-                } catch (err) {
-                    logger.error("Failed to load Step 2 state", err);
-                    alert(`Error: Could not load file. ${err.message}`);
-                }
+                } catch (err) { /* ... */ }
             };
             reader.readAsText(file);
-            $(this).val(''); // Reset input
-        });        
+            $(this).val('');
+        });      
 
         container.on('click', '.ok-btn', function() {
             const itemId = $(this).data('id');
