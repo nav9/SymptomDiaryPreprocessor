@@ -46,6 +46,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
             ui.showLoading("Sorting phrases for layout...");
             originalPhrases = phraseService.sortCardsSpatially(originalPhrases);
             
+            checkForMerges();
             render();
             attachEventListeners();
             ui.hideLoading();
@@ -93,30 +94,54 @@ const Step3Controller = (function(logger, ui, phraseService) {
     function createPhraseCard(phrase) {
         const tokens = phraseService.tokenizePhrase(phrase.text);
         let contentHtml = '';
-        let currentTagBuffer = [];
 
-        const processBuffer = () => {
-            if (currentTagBuffer.length > 0) {
-                const tagText = currentTagBuffer.join('');
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+
+            if (!token.isWord) {
+                contentHtml += `<span class="whitespace">${token.text}</span>`;
+                continue;
+            }
+
+            // Look-ahead for the longest possible matching multi-word tag
+            let bestMatch = { text: '', endIndex: -1 };
+            let currentPhrase = '';
+            for (let j = i; j < tokens.length; j++) {
+                currentPhrase += tokens[j].text;
+                if (tagState.has(currentPhrase.toLowerCase())) {
+                    bestMatch = { text: currentPhrase, endIndex: j };
+                }
+            }
+
+            // If a multi-word tag was found, render it as a single block
+            if (bestMatch.endIndex > -1) {
+                const tagText = bestMatch.text;
+                const lowerCaseTag = tagText.toLowerCase();
+                const alias = tagState.get(lowerCaseTag)?.alias || '';
+                
+                contentHtml += `
+                    <span class="word-tag tag-selected" data-tag-text="${escape(tagText)}" title="Alias: ${alias || 'none'}">
+                        ${tagText}
+                        <i class="fas fa-tag alias-icon"></i>
+                        ${alias ? `<small class="tag-alias">${alias}</small>` : ''}
+                    </span>`;
+                
+                i = bestMatch.endIndex; // Jump the loop index forward
+            } else {
+                // Otherwise, render the single word tag
+                const tagText = token.text;
                 const lowerCaseTag = tagText.toLowerCase();
                 const isSelected = tagState.has(lowerCaseTag);
                 const alias = tagState.get(lowerCaseTag)?.alias || '';
-                
-                // CORRECTED: Added alias display and tooltip. Changed icon.
+
                 contentHtml += `
                     <span class="word-tag ${isSelected ? 'tag-selected' : ''}" data-tag-text="${escape(tagText)}" title="Alias: ${alias || 'none'}">
                         ${tagText}
                         <i class="fas fa-tag alias-icon"></i>
                         ${alias ? `<small class="tag-alias">${alias}</small>` : ''}
                     </span>`;
-                currentTagBuffer = [];
             }
-        };
-        for (const token of tokens) {
-            if (token.isWord) { currentTagBuffer.push(token.text); } 
-            else { processBuffer(); contentHtml += `<span class="whitespace">${token.text}</span>`; }
         }
-        processBuffer();
 
         return `<div class="phrase-card" data-phrase-id="${phrase.id}">${contentHtml}</div>`;
     }
@@ -127,20 +152,62 @@ const Step3Controller = (function(logger, ui, phraseService) {
         const lowerCaseTag = fullTagText.toLowerCase();
         const isSelected = clickedTag.hasClass('tag-selected');
 
-        // Step 1: Update the global state
+        // --- Action: Un-select / Split ---
         if (isSelected) {
             tagState.delete(lowerCaseTag);
-        } else {
+        } 
+        // --- Action: Select ---
+        else {
             tagState.set(lowerCaseTag, { alias: '' });
+            // After selecting, we must check for potential merges globally.
+            // A full state check is the most robust way to handle this.
+            checkForMerges();
         }
-        
-        // Step 2: Attempt to merge adjacent tags in the clicked card
-        const card = clickedTag.closest('.phrase-card');
-        attemptMergeOnCard(card);
 
-        // Step 3: Re-render the entire UI to reflect the global change
-        render(); 
+        // --- Final Step: Re-render the entire UI ---
+        // A full re-render ensures global selections, merges, and splits are synced.
+        render();
     }
+
+    function checkForMerges() {
+        let wasMerged = false;
+        originalPhrases.forEach(phrase => {
+            const tokens = phraseService.tokenizePhrase(phrase.text);
+            for (let i = 0; i < tokens.length - 1; i++) {
+                if (!tokens[i].isWord) continue;
+
+                // Find the next word token, skipping whitespace
+                let nextWordIndex = -1;
+                let spaceBetween = '';
+                for (let j = i + 1; j < tokens.length; j++) {
+                    if(tokens[j].isWord) {
+                        nextWordIndex = j;
+                        break;
+                    }
+                    spaceBetween += tokens[j].text;
+                }
+                if (nextWordIndex === -1) continue;
+                
+                const tag1 = tokens[i].text;
+                const tag2 = tokens[nextWordIndex].text;
+
+                // Check if both individual tags are selected
+                if (tagState.has(tag1.toLowerCase()) && tagState.has(tag2.toLowerCase())) {
+                    const mergedTagText = `${tag1}${spaceBetween}${tag2}`;
+                    
+                    // Update global state: remove old tags, add new one
+                    tagState.delete(tag1.toLowerCase());
+                    tagState.delete(tag2.toLowerCase());
+                    tagState.set(mergedTagText.toLowerCase(), { alias: '' });
+                    
+                    wasMerged = true;
+                    // Restart the check from the beginning since the state has changed
+                    return checkForMerges();
+                }
+            }
+        });
+        return wasMerged;
+    }    
     
     /** Checks for and performs tag merging within a card. */
     function attemptMergeOnCard(card) {
