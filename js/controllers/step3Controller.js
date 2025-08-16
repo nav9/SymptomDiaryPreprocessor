@@ -60,6 +60,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         ui.showLoading("Loading saved tags...");
         setTimeout(() => {
             originalPhrases = savedState.phrases;
+            // CORRECTED: Ensure loaded data is correctly converted back to a Map.
             tagState = new Map(savedState.tags);
             logger.info(`Loaded ${originalPhrases.length} phrases and ${tagState.size} tags.`);
             render();
@@ -158,68 +159,63 @@ const Step3Controller = (function(logger, ui, phraseService) {
             tagState.delete(lowerCaseTag);
         } else {
             tagState.set(lowerCaseTag, { alias: '' });
-            checkForMerges(); // Check for new merges after any selection
+            checkForMerges();
         }
-        render(); // Always re-render to ensure global consistency
+        render();
     }
 
     function checkForMerges() {
-        let stateModified;
+        let stateWasModified;
         do {
-            stateModified = false;
-            const newTagState = new Map(tagState);
-            
-            // This loop must run on the original phrase text, not the rendered tags.
+            stateWasModified = false;
+            // We must iterate over a copy of keys, as the map is modified in the loop
+            const currentTags = Array.from(tagState.keys());
+
             for (const phrase of originalPhrases) {
                 const tokens = phraseService.tokenizePhrase(phrase.text);
                 
                 for (let i = 0; i < tokens.length; i++) {
                     if (!tokens[i].isWord) continue;
-                    
-                    const firstWord = tokens[i].text.toLowerCase();
-                    if (!newTagState.has(firstWord)) continue;
 
-                    // Build a chain of adjacent selected tags
-                    let chain = [tokens[i]];
-                    let currentChainText = tokens[i].text;
+                    // Check if the current token starts a potential chain
+                    if (!tagState.has(tokens[i].text.toLowerCase())) continue;
+                    
+                    // Build the longest possible chain of adjacent selected tags
+                    let chainOfTokens = [tokens[i]];
                     let lastWordIndex = i;
 
                     for (let j = i + 1; j < tokens.length; j++) {
-                        const token = tokens[j];
-                        if (token.isWord) {
-                            const nextWord = (currentChainText + token.text).toLowerCase();
-                            // This is incorrect logic. Need to check if the next word *itself* is a tag.
-                            const nextWordAlone = token.text.toLowerCase();
-                            if (newTagState.has(nextWordAlone)) {
-                                 // Add the space(s) and the word to the chain
-                                for (let k = lastWordIndex + 1; k < j; k++) {
-                                    chain.push(tokens[k]);
-                                }
-                                chain.push(token);
-                                lastWordIndex = j;
-                            } else {
-                                break; // Chain is broken
+                        if (!tokens[j].isWord) continue; // Skip whitespace tokens
+
+                        const wordToTest = tokens[j].text.toLowerCase();
+                        if (tagState.has(wordToTest)) {
+                            // Add all intermediate tokens (spaces) and the word itself
+                            for (let k = lastWordIndex + 1; k <= j; k++) {
+                                chainOfTokens.push(tokens[k]);
                             }
+                            lastWordIndex = j;
+                        } else {
+                            break; // The chain ends here
                         }
                     }
 
-                    if (chain.filter(t => t.isWord).length > 1) {
-                        const componentTags = chain.filter(t => t.isWord).map(t => t.text.toLowerCase());
-                        const mergedTagText = chain.map(t => t.text).join('');
+                    // If we found a chain of 2 or more words, merge them
+                    if (chainOfTokens.filter(t => t.isWord).length > 1) {
+                        const componentTags = chainOfTokens.filter(t => t.isWord).map(t => t.text.toLowerCase());
+                        const mergedTagText = chainOfTokens.map(t => t.text).join('');
                         
-                        // Modify the tag state
-                        componentTags.forEach(tag => newTagState.delete(tag));
-                        newTagState.set(mergedTagText.toLowerCase(), { alias: '' });
+                        // Update state: delete components, add the new merged tag
+                        componentTags.forEach(tag => tagState.delete(tag));
+                        tagState.set(mergedTagText.toLowerCase(), { alias: '' });
                         
-                        tagState = newTagState;
-                        stateModified = true;
-                        break; // Restart the entire process with the new state
+                        stateWasModified = true;
+                        break; // Break from inner loop to restart the whole process
                     }
                 }
-                if (stateModified) break;
+                if (stateWasModified) break; // Break from outer loop
             }
-        } while (stateModified);
-    }  
+        } while (stateWasModified); // Keep running as long as merges are happening
+    } 
     
     /** Checks for and performs tag merging within a card. */
     function attemptMergeOnCard(card) {
@@ -270,12 +266,14 @@ const Step3Controller = (function(logger, ui, phraseService) {
                 const tagSpan = $(this).closest('.word-tag');
                 const tagText = unescape(tagSpan.data('tag-text'));
                 const lowerCaseTag = tagText.toLowerCase();
-                const currentAlias = tagState.get(lowerCaseTag)?.alias || '';
+                if (!tagState.has(lowerCaseTag)) {
+                    tagState.set(lowerCaseTag, { alias: '' });
+                }
+                const currentAlias = tagState.get(lowerCaseTag).alias;
                 const newAlias = prompt(`Enter an alternate name for "${tagText}":`, currentAlias);
-
-                if (newAlias !== null) { // Handle cancel vs. empty string
-                    tagState.set(lowerCaseTag, { alias: newAlias.trim() });
-                    render(); // Re-render to show/hide the alias text
+                if (newAlias !== null) {
+                    tagState.get(lowerCaseTag).alias = newAlias.trim();
+                    render();
                 }
             });
 
@@ -293,7 +291,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         selectors.downloadBtn.off().on('click', function() {
             const stateToSave = {
                 phrases: originalPhrases,
-                tags: Array.from(tagState.entries())
+                tags: Array.from(tagState.entries()) // This correctly saves the [key, {alias}] pairs
             };
             const dataStr = JSON.stringify(stateToSave, null, 2);
             const blob = new Blob([dataStr], { type: 'application/json' });
@@ -322,8 +320,9 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
         const proceedAction = function() {
             if (!window.appState.step3) window.appState.step3 = {};
-            window.appState.step3.tags = Array.from(tagState.entries()); // Pass the tags
-            // The original Step 2 data is implicitly still in `window.appState.step2.finalData`
+            // The tagState Map, containing aliases, is the data to pass on.
+            window.appState.step3.tags = tagState;
+            logger.info("Proceeding to Step 4 with tagged data (including aliases).");
             alert("Proceeding to Step 4 (to be built)!");
         };
         selectors.proceedTopBtn.off().on('click', proceedAction);
