@@ -258,24 +258,28 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
     function attachEventListeners() {
         selectors.cardsContainer.off()
-            .on('click', '.word-tag', function() {
-                handleTagClick($(this));
-            })
-            .on('click', '.alias-icon', function(e) {
-                e.stopPropagation();
-                const tagSpan = $(this).closest('.word-tag');
-                const tagText = unescape(tagSpan.data('tag-text'));
-                const lowerCaseTag = tagText.toLowerCase();
-                if (!tagState.has(lowerCaseTag)) {
-                    tagState.set(lowerCaseTag, { alias: '' });
-                }
-                const currentAlias = tagState.get(lowerCaseTag).alias;
-                const newAlias = prompt(`Enter an alternate name for "${tagText}":`, currentAlias);
-                if (newAlias !== null) {
-                    tagState.get(lowerCaseTag).alias = newAlias.trim();
-                    render();
-                }
-            });
+        .on('click', '.word-tag', function() { handleTagClick($(this)); })
+        .on('click', '.alias-icon', function(e) {
+            e.stopPropagation();
+            const tagSpan = $(this).closest('.word-tag');
+            const tagText = unescape(tagSpan.data('tag-text'));
+            const lowerCaseTag = tagText.toLowerCase();
+
+            if (!tagState.has(lowerCaseTag)) { tagState.set(lowerCaseTag, { alias: '' }); }
+            
+            // CORRECTED: Generate suggestions for aliases.
+            const currentAlias = tagState.get(lowerCaseTag).alias;
+            const suggestedAliases = generateWordForms(tagText);
+            const promptDefault = currentAlias || suggestedAliases.join(', ');
+
+            const newAlias = prompt(`Enter alternate names for "${tagText}" (comma-separated):`, promptDefault);
+
+            if (newAlias !== null) {
+                tagState.get(lowerCaseTag).alias = newAlias.trim();
+                render();
+            }
+        });
+        
 
         selectors.addPhraseBtn.off().on('click', function() {
             const newPhraseText = prompt("Enter a new phrase to tag:");
@@ -335,6 +339,34 @@ const Step3Controller = (function(logger, ui, phraseService) {
         selectors.proceedTopBtn.off().on('click', proceedAction);
         selectors.proceedBottomBtn.off().on('click', proceedAction);
     }
+
+    /**
+     * Generates common variations of a word for alias suggestions.
+     * @param {string} word - The base word.
+     * @returns {Array<string>} An array of suggested variations.
+     */
+    function generateWordForms(word) {
+        const suggestions = new Set();
+        const lowerWord = word.toLowerCase();
+
+        // Simple pluralization
+        if (lowerWord.endsWith('y')) {
+            suggestions.add(lowerWord.slice(0, -1) + 'ies');
+        } else if (lowerWord.endsWith('s')) {
+            suggestions.add(lowerWord + 'es');
+        } else {
+            suggestions.add(lowerWord + 's');
+        }
+
+        // Simple verb forms
+        if (!lowerWord.endsWith('e')) {
+            suggestions.add(lowerWord + 'e');
+        }
+        suggestions.add(lowerWord + 'ed');
+        suggestions.add(lowerWord + 'ing');
+
+        return Array.from(suggestions);
+    }    
 
     return { init };
 

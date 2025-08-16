@@ -341,8 +341,37 @@ main {
     right: 0;
     font-size: 0.6em;
     line-height: 1;
-    color: #adb5bd; /* Lighter grey text */
+    color: #adb5bd; 
     opacity: 0.9;
-    pointer-events: none; /* Make it unclickable */
+    pointer-events: none; 
     text-align: center;
 } */
+
+/* --- ADD NEW STEP 4 STYLES --- */
+#step4-details-table textarea {
+    border: none;
+    background-color: transparent;
+    resize: none;
+    width: 100%;
+    min-height: 50px;
+}
+#step4-details-table textarea:focus {
+    background-color: #495057; /* Highlight on focus */
+}
+
+/* Autocomplete Suggestions */
+#step4-suggestions-container {
+    position: absolute;
+    z-index: 1050; /* Above table content */
+    max-height: 200px;
+    overflow-y: auto;
+    display: none; /* Hidden by default */
+}
+#step4-suggestions-container .list-group-item {
+    cursor: pointer;
+    padding: 0.5rem 0.75rem;
+}
+#step4-suggestions-container .list-group-item:hover {
+    background-color: var(--bs-primary);
+    color: white;
+}
