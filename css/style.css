@@ -285,7 +285,18 @@ main {
     transition: background-color 0.2s, color 0.2s;
     position: relative;
     white-space: nowrap;
+    /* position: relative;
+    padding-bottom: 1.2em;
+    text-align: center;     */
 }
+
+.alias-icon {
+    font-size: 0.7em;
+    margin-left: 4px;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+}
+
 .word-tag:hover {
     background-color: #6c757d;
 }
@@ -321,3 +332,17 @@ main {
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
     z-index: 1030;
 }
+
+/* NEW: Styles for the alias text displayed below the tag */
+/* .tag-alias {
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    right: 0;
+    font-size: 0.6em;
+    line-height: 1;
+    color: #adb5bd; /* Lighter grey text */
+    opacity: 0.9;
+    pointer-events: none; /* Make it unclickable */
+    text-align: center;
+} */

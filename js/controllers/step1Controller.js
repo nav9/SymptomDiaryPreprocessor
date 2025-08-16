@@ -104,11 +104,9 @@ const Step1Controller = (function(logger, recognizer) {
     function renderStickyHeader(currentYearErrorCount, totalErrorCount) {
         const years = Object.keys(yearlyData).sort();
         const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
-
-        // NEW: Logic to disable next/prev buttons
-        const errorIds = yearlyData[currentYear].filter(l => l.type === 'error').map(l => l.id);
-        const nextPrevDisabled = errorIds.length < 2 ? 'disabled' : '';
+        const nextPrevDisabled = yearlyData[currentYear].filter(l => l.type === 'error').length < 2 ? 'disabled' : '';
         const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
+        
         const headerHtml = `
             <div class="row g-2 align-items-center">
                 <div class="col-auto">
@@ -116,9 +114,7 @@ const Step1Controller = (function(logger, recognizer) {
                     <select id="year-select" class="form-select form-select-sm">${options}</select>
                 </div>
                 <div class="col-auto">
-                <span class="badge ${errorBadgeClass}">
-                        ${currentYearErrorCount} issues / ${totalErrorCount} total
-                    </span>
+                    <span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues / ${totalErrorCount} total</span>
                 </div>
                 <div class="col">
                     <button id="prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
@@ -131,6 +127,7 @@ const Step1Controller = (function(logger, recognizer) {
                     <button id="save-btn" class="btn btn-sm btn-primary" title="Save Year Data"><i class="fas fa-save"></i></button>
                 </div>
             </div>
+            <!-- This container will now be populated with the proceed button -->
             <div id="top-proceed-container" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
     }
@@ -185,12 +182,12 @@ const Step1Controller = (function(logger, recognizer) {
                 All Clear! Proceed to Step 2 <i class="fas fa-arrow-right"></i>
             </button>`;
         
-        // Use jQuery's .html() to replace content, effectively hiding/showing
         if (totalErrorCount === 0 && Object.keys(yearlyData).length > 0) {
-            selectors.topProceedContainer.html(proceedButtonHtml);
+            // Populate both the top and bottom containers with the button.
+            $('#top-proceed-container').html(proceedButtonHtml.replace('btn-lg', '')); // Use a smaller button at the top
             selectors.bottomProceedContainer.html(proceedButtonHtml);
         } else {
-            selectors.topProceedContainer.empty();
+            $('#top-proceed-container').empty();
             selectors.bottomProceedContainer.empty();
         }
     }

@@ -98,26 +98,25 @@ const Step3Controller = (function(logger, ui, phraseService) {
         const processBuffer = () => {
             if (currentTagBuffer.length > 0) {
                 const tagText = currentTagBuffer.join('');
-                const isSelected = tagState.has(tagText.toLowerCase());
-                const alias = tagState.get(tagText.toLowerCase())?.alias || '';
+                const lowerCaseTag = tagText.toLowerCase();
+                const isSelected = tagState.has(lowerCaseTag);
+                const alias = tagState.get(lowerCaseTag)?.alias || '';
+                
+                // CORRECTED: Added alias display and tooltip. Changed icon.
                 contentHtml += `
-                    <span class="word-tag ${isSelected ? 'tag-selected' : ''}" data-tag-text="${escape(tagText)}">
+                    <span class="word-tag ${isSelected ? 'tag-selected' : ''}" data-tag-text="${escape(tagText)}" title="Alias: ${alias || 'none'}">
                         ${tagText}
-                        <i class="fas fa-pencil-alt alias-icon" title="Set alias: ${alias || 'none'}"></i>
+                        <i class="fas fa-tag alias-icon"></i>
+                        ${alias ? `<small class="tag-alias">${alias}</small>` : ''}
                     </span>`;
                 currentTagBuffer = [];
             }
         };
-
         for (const token of tokens) {
-            if (token.isWord) {
-                currentTagBuffer.push(token.text);
-            } else {
-                processBuffer();
-                contentHtml += `<span class="whitespace">${token.text}</span>`;
-            }
+            if (token.isWord) { currentTagBuffer.push(token.text); } 
+            else { processBuffer(); contentHtml += `<span class="whitespace">${token.text}</span>`; }
         }
-        processBuffer(); // Process any remaining buffer
+        processBuffer();
 
         return `<div class="phrase-card" data-phrase-id="${phrase.id}">${contentHtml}</div>`;
     }
@@ -137,61 +136,69 @@ const Step3Controller = (function(logger, ui, phraseService) {
         
         // Step 2: Attempt to merge adjacent tags in the clicked card
         const card = clickedTag.closest('.phrase-card');
-        const merged = attemptMerge(card);
+        attemptMergeOnCard(card);
 
         // Step 3: Re-render the entire UI to reflect the global change
-        if (!merged) {
-             render(); // Full re-render if no merge happened
-        }
+        render(); 
     }
     
     /** Checks for and performs tag merging within a card. */
-    function attemptMerge(card) {
+    function attemptMergeOnCard(card) {
         const tagsAndSpaces = card.children('span');
         let hasMerged = false;
-
-        for (let i = 0; i < tagsAndSpaces.length - 2; i++) {
+        
+        for (let i = 0; i < tagsAndSpaces.length - 1; i++) {
             const current = $(tagsAndSpaces[i]);
-            const space = $(tagsAndSpaces[i + 1]);
-            const next = $(tagsAndSpaces[i + 2]);
+            if (!current.hasClass('tag-selected')) continue;
 
-            // Check for two adjacent, selected word tags
-            if (current.hasClass('word-tag tag-selected') && space.hasClass('whitespace') && next.hasClass('word-tag tag-selected')) {
+            // Find the next actual word-tag, skipping whitespace
+            let nextIndex = i + 1;
+            while(nextIndex < tagsAndSpaces.length && !$(tagsAndSpaces[nextIndex]).hasClass('word-tag')) {
+                nextIndex++;
+            }
+            if (nextIndex >= tagsAndSpaces.length) continue;
+            const next = $(tagsAndSpaces[nextIndex]);
+
+            // Check if the next tag is also selected
+            if (next.hasClass('tag-selected')) {
                 const oldTag1 = unescape(current.data('tag-text')).toLowerCase();
                 const oldTag2 = unescape(next.data('tag-text')).toLowerCase();
-                const newTagText = `${unescape(current.data('tag-text'))}${space.text()}${unescape(next.data('tag-text'))}`;
-                const newTagLower = newTagText.toLowerCase();
 
-                // Smart Un-selection: Remove old individual tags and select the new merged one.
+                // Collect all text between the two tags (for multiple spaces)
+                const spaceText = tagsAndSpaces.slice(i + 1, nextIndex).text();
+                const newTagText = `${unescape(current.data('tag-text'))}${spaceText}${unescape(next.data('tag-text'))}`;
+                
+                // Update global state: remove old tags, add new one
                 tagState.delete(oldTag1);
                 tagState.delete(oldTag2);
-                tagState.set(newTagLower, { alias: '' });
-
+                tagState.set(newTagText.toLowerCase(), { alias: '' });
+                
                 hasMerged = true;
-                break; // Stop after the first merge to simplify state updates
+                break; // Exit after one merge to restart the process cleanly
             }
         }
-
-        if (hasMerged) {
-            render(); // A merge forces a full re-render
-        }
+        // If a merge happened, the calling function will handle the re-render.
         return hasMerged;
     }
 
     function attachEventListeners() {
-        selectors.cardsContainer.off().on('click', '.word-tag', function() {
-            handleTagClick($(this));
-        }).on('click', '.alias-icon', function(e) {
-            e.stopPropagation();
-            const tagSpan = $(this).parent();
-            const tagText = unescape(tagSpan.data('tag-text')).toLowerCase();
-            const currentAlias = tagState.get(tagText)?.alias || '';
-            const newAlias = prompt(`Enter an alternate name for "${tagText}":`, currentAlias);
-            if (newAlias !== null) {
-                tagState.set(tagText, { alias: newAlias.trim() });
-                $(this).attr('title', `Set alias: ${newAlias.trim() || 'none'}`);
-            }
-        });
+        selectors.cardsContainer.off()
+            .on('click', '.word-tag', function() {
+                handleTagClick($(this));
+            })
+            .on('click', '.alias-icon', function(e) {
+                e.stopPropagation();
+                const tagSpan = $(this).closest('.word-tag');
+                const tagText = unescape(tagSpan.data('tag-text'));
+                const lowerCaseTag = tagText.toLowerCase();
+                const currentAlias = tagState.get(lowerCaseTag)?.alias || '';
+                const newAlias = prompt(`Enter an alternate name for "${tagText}":`, currentAlias);
+
+                if (newAlias !== null) { // Handle cancel vs. empty string
+                    tagState.set(lowerCaseTag, { alias: newAlias.trim() });
+                    render(); // Re-render to show/hide the alias text
+                }
+            });
 
         selectors.addPhraseBtn.off().on('click', function() {
             const newPhraseText = prompt("Enter a new phrase to tag:");

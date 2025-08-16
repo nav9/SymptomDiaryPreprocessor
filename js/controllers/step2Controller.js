@@ -118,11 +118,10 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
                     <button id="step2-next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
                 </div>
                 <div class="col-auto ms-auto d-flex gap-2">
-                    <!-- ADDED: Save/Load Buttons -->
+                    <!-- This Load button is always rendered, fulfilling the requirement -->
                     <input type="file" id="step2-load-input" class="d-none" accept=".json">
                     <label for="step2-load-input" class="btn btn-sm btn-outline-secondary" title="Load Step 2 Data"><i class="fas fa-upload me-2"></i>Load</label>
                     <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data"><i class="fas fa-download me-2"></i>Save</button>
-                    <!-- END ADDED -->
                     <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line"><i class="fas fa-plus"></i></button>
                     <button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
                     <button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
