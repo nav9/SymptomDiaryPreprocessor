@@ -14,6 +14,7 @@ FONT_AWESOME_VERSION="6.5.2"
 # --- Directory Creation ---
 echo "Creating project directories..."
 mkdir -p css js data lib/bootstrap lib/jquery lib/fontawesome
+mkdir -p js/controllers js/services js/ui js/utils
 echo "Directories created successfully."
 
 # --- Helper Function for Downloading ---
@@ -109,15 +110,17 @@ touch js/state.js
 touch js/controllers/appController.js # Main orchestrator
 touch js/controllers/step1Controller.js # Logic for Step 1
 touch js/controllers/step2Controller.js # Logic for Step 2
+touch js/controllers/step3Controller.js 
+touch js/controllers/step4Controller.js
+touch js/services/lineRecognizerService.js
 touch js/services/validatorService.js
+touch js/services/phraseService.js
+touch js/services/knowledgeBaseService.js
 touch js/ui/uiService.js # For modals, notifications, etc.
 touch js/utils/date-parser.js # For robust date parsing
 touch js/dummy-data.js
 
-touch index.html
-touch faq.html
-touch contact.html
-touch app.html
+touch index.html faq.html contact.html app.html
 echo "Placeholder files created."
 
 

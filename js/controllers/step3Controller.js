@@ -319,11 +319,18 @@ const Step3Controller = (function(logger, ui, phraseService) {
         });
 
         const proceedAction = function() {
+            // 1. Save the final tag data to the global state for Step 4 to access.
             if (!window.appState.step3) window.appState.step3 = {};
-            // The tagState Map, containing aliases, is the data to pass on.
             window.appState.step3.tags = tagState;
             logger.info("Proceeding to Step 4 with tagged data (including aliases).");
-            alert("Proceeding to Step 4 (to be built)!");
+            
+            // 2. Call the navigation callback to switch to the next step.
+            if (navCallback) {
+                navCallback(4);
+            } else {
+                logger.error("Navigation callback is not defined. Cannot proceed to Step 4.");
+                alert("Error: Cannot navigate to the next step.");
+            }
         };
         selectors.proceedTopBtn.off().on('click', proceedAction);
         selectors.proceedBottomBtn.off().on('click', proceedAction);

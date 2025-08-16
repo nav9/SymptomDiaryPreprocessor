@@ -15,7 +15,9 @@ const PhraseService = (function(logger) {
         // Medicines & Treatments
         'paracetamol', 'ibuprofen', 'aspirin', 'antacid', 'gargle', 'antibiotic', 'probiotic', 'vitamin', 'supplement', 'medication', 'pill', 'tablet',
         // General Indicators
-        'feeling', 'good', 'bad', 'better', 'worse', 'started', 'stopped', 'increased', 'decreased'
+        'feeling', 'good', 'bad', 'better', 'worse', 'started', 'stopped', 'increased', 'decreased',
+        // Food Contaminants
+        'arsenic', 'mercury', 'lead', 'cadmium', 'pesticide', 'pesticides', 'herbicide', 'herbicides', 'bpa', 'aflatoxin', 'aflatoxins', 'mycotoxin', 'mycotoxins', 'salmonella', 'e.coli', 'listeria', 'acrylamide', 'dioxins', 'pcbs',        
     ]);
 
     /**

@@ -1,4 +1,4 @@
-const AppController = (function(step1, step2, step3) {
+const AppController = (function(step1, step2, step3, step4) { 
     function init() {
         logger.info("Initializing Application Controller");
         
@@ -42,7 +42,10 @@ const AppController = (function(step1, step2, step3) {
                 break;
             case 3:
                 step3.init(navigateToStep, dataPayload);
-                break;                
+                break;   
+            case 4:
+                step4.init(navigateToStep); // New Step 4
+                break;                              
             // Future steps will be added here
         }
     }
@@ -88,6 +91,6 @@ const AppController = (function(step1, step2, step3) {
 
     return { init };
 
-})(Step1Controller, Step2Controller, Step3Controller);
+})(Step1Controller, Step2Controller, Step3Controller, Step4Controller);
 
 $(document).ready(AppController.init);
