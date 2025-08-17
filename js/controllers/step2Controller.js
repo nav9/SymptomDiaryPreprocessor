@@ -83,17 +83,28 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
 
     /** Renders all UI components based on the current state. */
     function render() {
-        let totalErrors = 0;
+        let currentYearErrors = 0;
         let grandTotalErrors = 0;
 
-        if (currentYear && step2Data[currentYear] && step2Data[currentYear].structuredData) {
-            totalErrors = step2Data[currentYear].structuredData.filter(item => item.error).length;
-            grandTotalErrors = Object.values(step2Data).reduce((acc, yearObj) => {
-                return acc + (yearObj.structuredData ? yearObj.structuredData.filter(item => item.error).length : 0);
-            }, 0);
-        }
+        // Ensure all years are processed to get an accurate total count.
+        Object.entries(step2Data).forEach(([year, yearObject]) => {
+            // If a year's data hasn't been structured yet, process it now.
+            if (yearObject.structuredData.length === 0 && yearObject.rawLines.length > 0) {
+                const yearForParsing = parseInt(year, 10);
+                yearObject.structuredData = validator.structureData(yearObject.rawLines);
+                const { validatedData } = validator.validateChronology(yearObject.structuredData, yearForParsing);
+                yearObject.structuredData = validatedData;
+            }
+            
+            const yearErrorCount = yearObject.structuredData.filter(item => item.error).length;
+            grandTotalErrors += yearErrorCount;
+            
+            if (year === currentYear) {
+                currentYearErrors = yearErrorCount;
+            }
+        });
 
-        renderStickyHeader(totalErrors, grandTotalErrors);
+        renderStickyHeader(currentYearErrors, grandTotalErrors);
         renderDataContainer();
         updateProceedButton(grandTotalErrors);
     } 
