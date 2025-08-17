@@ -114,7 +114,7 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
         const years = Object.keys(step2Data);
         const options = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
         const errorBadgeClass = totalErrorCount > 0 ? 'bg-danger' : 'bg-success';
-        const nextPrevDisabled = currentYearErrorCount < 2 ? 'disabled' : '';
+        const nextPrevDisabled = currentYearErrorCount === 0 ? 'disabled' : '';
         
         const headerHtml = `
             <div class="row g-2 align-items-center">
@@ -128,6 +128,11 @@ const Step2Controller = (function(logger, validator, dateParser, ui) {
                     <input type="file" id="step2-load-input" class="d-none" accept=".json">
                     <label for="step2-load-input" class="btn btn-sm btn-outline-secondary" title="Load Step 2 Data"><i class="fas fa-upload me-2"></i>Load</label>
                     <button id="step2-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Step 2 Data" ${years.length === 0 ? 'disabled' : ''}><i class="fas fa-download me-2"></i>Save</button>
+                    
+                    <!-- RESTORED BUTTONS -->
+                    <button id="step2-move-up-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Up"><i class="fas fa-chevron-up"></i></button>
+                    <button id="step2-move-down-btn" class="btn btn-sm btn-outline-secondary" disabled title="Move Down"><i class="fas fa-chevron-down"></i></button>
+                    
                     <button id="step2-add-btn" class="btn btn-sm btn-custom-green" title="Add New Line" ${years.length === 0 ? 'disabled' : ''}><i class="fas fa-plus"></i></button>
                     <button id="step2-edit-btn" class="btn btn-sm btn-custom-grey" title="Edit Selected" disabled><i class="fas fa-edit"></i></button>
                     <button id="step2-delete-btn" class="btn btn-sm btn-outline-danger" title="Delete Selected" disabled><i class="fas fa-trash"></i></button>
