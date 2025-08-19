@@ -10,6 +10,7 @@ BOOTSTRAP_VERSION="5.3.3"
 JQUERY_VERSION="3.7.1"
 JQUERY_UI_VERSION="1.13.2"
 FONT_AWESOME_VERSION="6.5.2"
+VANILLA_PICKER_VERSION="2.12.2"
 
 # --- Directory Creation ---
 echo "Creating project directories..."
@@ -68,6 +69,10 @@ FA_EXTRACT_DIR="lib/fontawesome/temp_fa"
 FA_FINAL_FONTS_DIR="lib/fontawesome/webfonts"
 
 download_file "$FA_CSS_URL" "lib/fontawesome/all.min.css"
+
+# 4. Vanilla Picker (for Step 3 Color Picker)
+echo -e "\n--- Handling Vanilla Picker ---"
+download_file "https://cdn.jsdelivr.net/npm/vanilla-picker@$VANILLA_PICKER_VERSION/dist/vanilla-picker.min.js" "lib/vanilla-picker.min.js"
 
 # Download and extract webfonts
 if [ -d "$FA_FINAL_FONTS_DIR" ]; then

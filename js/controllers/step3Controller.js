@@ -1,315 +1,262 @@
-/**
- * @file step3Controller.js
- * @description Manages the interactive word tagging interface for Step 3.
- */
 const Step3Controller = (function(logger, ui, phraseService) {
 
     const selectors = {
         container: $('#step-3-content'),
-        cardsContainer: $('#phrase-cards-container'),
-        addPhraseBtn: $('#step3-add-phrase-btn'),
+        groupsWrapper: $('#groups-container-wrapper'),
+        groupsContainer: $('#groups-container'),
+        paintToggle: $('#category-paint-toggle'),
+        categorySelect: $('#category-select'),
+        colorPickerBtn: $('#category-color-picker'),
+        editCategoriesBtn: $('#edit-categories-btn'),
         uploadBtn: $('#upload-step3-state'),
         downloadBtn: $('#download-step3-state'),
         proceedTopBtn: $('#step3-proceed-top'),
         proceedBottomBtn: $('#step3-proceed-bottom'),
     };
 
-    let originalPhrases = []; // Array of {id, text} objects.
-    let tagState = new Map(); // Global state: Map<string, {alias: string}>
+    let state = {};
+    let colorPicker = null;
     let navCallback = null;
+    let categoryModal = null;
+    let addGroupModal = null;
+
+    function setDefaultState() {
+        state = {
+            categories: [
+                { id: 'none', name: 'None', color: '#6c757d', removable: false },
+                { id: 'symptom', name: 'Symptom', color: '#ffc107', removable: true },
+                { id: 'food', name: 'Food', color: '#0dcaf0', removable: true },
+                { id: 'medication', name: 'Medication', color: '#198754', removable: true },
+                { id: 'action', name: 'Action', color: '#fd7e14', removable: true },
+                { id: 'anatomy', name: 'Anatomy', color: '#8b4513', removable: true },
+                { id: 'contaminant', name: 'Contaminant', color: '#dc3545', removable: true },
+            ],
+            groups: [],
+            isPaintMode: false
+        };
+    }
 
     function init(navigationCallback, payload) {
-        logger.info("Initializing Step 3: Word Tagging.");
+        logger.info("Initializing Step 3: Word Grouping.");
         navCallback = navigationCallback;
-        
+        setDefaultState();
+        injectModals();
+
         if (payload) {
             loadState(payload);
         } else {
             const dataFromStep2 = window.appState?.step2?.finalData;
             if (!dataFromStep2 || Object.keys(dataFromStep2).length === 0) {
-                selectors.cardsContainer.html('<div class="alert alert-warning">No data received from Step 2.</div>');
+                selectors.groupsContainer.html('<div class="alert alert-warning">No data to process. Please complete Step 2 or load a file.</div>');
+                renderCategoryControls();
+                attachEventListeners();
                 return;
             }
             processNewData(dataFromStep2);
         }
     }
 
-    function processNewData(dataFromStep2) {
-        ui.showLoading("Extracting unique phrases...");
-        setTimeout(() => {
-            originalPhrases = phraseService.extractUniquePhrases(dataFromStep2);
-            
-            ui.showLoading("Applying automatic tagging...");
-            applyHeuristics();
+    async function processNewData(dataFromStep2) {
+        ui.showLoading(`Extracting unique words...`);
+        const uniqueWords = phraseService.extractUniqueWords(dataFromStep2);
+        
+        const progressCallback = (processed, total) => {
+            ui.showLoading(`Categorizing words... (${processed} / ${total})`);
+        };
 
-            // CORRECTED: Run merge check immediately after applying heuristics.
-            ui.showLoading("Merging adjacent tags...");
-            checkForMerges();
-
-            ui.showLoading("Sorting phrases for layout...");
-            originalPhrases = phraseService.sortCardsSpatially(originalPhrases);
-            
-            render();
-            attachEventListeners();
-            ui.hideLoading();
-        }, 50);
+        state.groups = await phraseService.autoGroupWords(uniqueWords, progressCallback);
+        
+        ui.showLoading(`Sorting ${state.groups.length} groups...`);
+        
+        // BUG FIX: Filter out any potentially empty groups before sorting to prevent errors.
+        state.groups = state.groups
+            .filter(g => g.tags && g.tags.length > 0)
+            .sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
+        
+        render();
+        attachEventListeners();
+        ui.hideLoading();
     }
-    
-    /** Loads a previously saved state. */
+
     function loadState(savedState) {
-        ui.showLoading("Loading saved tags...");
+        ui.showLoading("Loading saved state...");
         setTimeout(() => {
-            originalPhrases = savedState.phrases;
-            // CORRECTED: Ensure loaded data is correctly converted back to a Map.
-            tagState = new Map(savedState.tags);
-            logger.info(`Loaded ${originalPhrases.length} phrases and ${tagState.size} tags.`);
+            state.categories = savedState.categories || state.categories;
+            state.groups = savedState.groups || [];
+            state.isPaintMode = savedState.isPaintMode || false;
+            logger.info(`Loaded ${state.groups.length} groups and ${state.categories.length} categories.`);
             render();
             attachEventListeners();
             ui.hideLoading();
         }, 50);
     }
 
-    /** Pre-selects common keywords from the heuristics dictionary. */
-    function applyHeuristics() {
-        tagState.clear();
-        const tokens = new Set();
-        originalPhrases.forEach(p => {
-            p.text.toLowerCase().split(/\s+/).forEach(word => tokens.add(word));
-        });
-
-        tokens.forEach(token => {
-            if (phraseService.HEURISTICS_KEYWORDS.has(token)) {
-                tagState.set(token, { alias: '' });
-            }
-        });
-        logger.info(`Pre-selected ${tagState.size} common tags.`);
-    }
-
-    /** Renders the entire UI from the current state. */
     function render() {
-        selectors.cardsContainer.empty();
-        originalPhrases.forEach(phrase => {
-            selectors.cardsContainer.append(createPhraseCard(phrase));
-        });
+        renderCategoryControls();
+        renderGroups();
     }
 
-    /** Creates the HTML for a single phrase card. */
-    function createPhraseCard(phrase) {
-        const tokens = phraseService.tokenizePhrase(phrase.text);
-        let contentHtml = '';
+    function renderCategoryControls() {
+        const select = selectors.categorySelect;
+        const previousVal = select.val();
+        select.empty();
+        state.categories.forEach(cat => {
+            select.append(`<option value="${cat.id}">${cat.name}</option>`);
+        });
+        select.val(previousVal); // Restore previous selection
 
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
+        const selectedCategory = state.categories.find(c => c.id === select.val()) || state.categories[0];
+        selectors.colorPickerBtn.css('background-color', selectedCategory.color);
+        
+        if (!colorPicker) {
+            colorPicker = new Picker({
+                parent: selectors.colorPickerBtn[0],
+                popup: 'right', alpha: false, editor: false, color: selectedCategory.color,
+            });
+            colorPicker.onChange = function(color) {
+                const catId = select.val();
+                const category = state.categories.find(c => c.id === catId);
+                if (category) {
+                    category.color = color.hex;
+                    this.setColor(color.hex, true);
+                    selectors.colorPickerBtn.css('background-color', color.hex);
+                    renderGroups();
+                }
+            };
+        } else {
+             colorPicker.setColor(selectedCategory.color, true);
+        }
+        
+        selectors.paintToggle.prop('checked', state.isPaintMode);
+        const controlsDisabled = !state.isPaintMode;
+        select.prop('disabled', controlsDisabled);
+        selectors.colorPickerBtn.prop('disabled', controlsDisabled);
+    }
 
-            if (!token.isWord) {
-                contentHtml += `<span class="whitespace">${token.text}</span>`;
-                continue;
-            }
+    function renderGroups() {
+        selectors.groupsContainer.empty();
+        
+        const newGroupBtnHtml = `<div id="add-new-group-card" class="group-card add-group-card" title="Create a new group">
+            <i class="fas fa-plus"></i> New Group
+        </div>`;
+        selectors.groupsContainer.append(newGroupBtnHtml);
 
-            // Look-ahead for the longest possible matching multi-word tag
-            let bestMatch = { text: '', endIndex: -1 };
-            let currentPhrase = '';
-            for (let j = i; j < tokens.length; j++) {
-                currentPhrase += tokens[j].text;
-                if (tagState.has(currentPhrase.toLowerCase())) {
-                    bestMatch = { text: currentPhrase, endIndex: j };
+        state.groups.forEach(group => {
+            const category = state.categories.find(c => c.id === group.categoryId) || state.categories[0];
+            const tagsHtml = group.tags.map(tag => 
+                `<span class="word-tag" draggable="true" data-tag-id="${tag.id}" style="background-color:${category.color};">${tag.text}</span>`
+            ).join('');
+            
+            const groupHtml = `<div class="group-card ${state.isPaintMode ? 'paint-mode-active' : ''}" data-group-id="${group.id}">
+                ${tagsHtml}
+            </div>`;
+            selectors.groupsContainer.append(groupHtml);
+        });
+        setupDragAndDrop();
+    }
+
+    function setupDragAndDrop() {
+        let scrollInterval = null;
+        
+        $('.word-tag').draggable({
+            revert: "invalid", helper: "clone", cursor: "grabbing",
+            start: function() { $(this).css('opacity', 0.5); },
+            stop: function() { 
+                $(this).css('opacity', 1);
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+            },
+            drag: function(event) {
+                const wrapper = selectors.groupsWrapper[0];
+                const rect = wrapper.getBoundingClientRect();
+                const scrollSpeed = 15;
+                
+                if (event.clientY < rect.top + 50) {
+                    if (!scrollInterval) scrollInterval = setInterval(() => wrapper.scrollTop -= scrollSpeed, 15);
+                } else if (event.clientY > rect.bottom - 50) {
+                    if (!scrollInterval) scrollInterval = setInterval(() => wrapper.scrollTop += scrollSpeed, 15);
+                } else {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
                 }
             }
+        });
 
-            // If a multi-word tag was found, render it as a single block
-            if (bestMatch.endIndex > -1) {
-                const tagText = bestMatch.text;
-                const lowerCaseTag = tagText.toLowerCase();
-                const alias = tagState.get(lowerCaseTag)?.alias || '';
-                
-                contentHtml += `
-                    <span class="word-tag tag-selected" data-tag-text="${escape(tagText)}" title="Alias: ${alias || 'none'}">
-                        ${tagText}
-                        <i class="fas fa-tag alias-icon"></i>
-                        ${alias ? `<small class="tag-alias">${alias}</small>` : ''}
-                    </span>`;
-                
-                i = bestMatch.endIndex; // Jump the loop index forward
-            } else {
-                // Otherwise, render the single word tag
-                const tagText = token.text;
-                const lowerCaseTag = tagText.toLowerCase();
-                const isSelected = tagState.has(lowerCaseTag);
-                const alias = tagState.get(lowerCaseTag)?.alias || '';
+        $('.group-card:not(.add-group-card)').droppable({
+            accept: ".word-tag", hoverClass: "drop-hover",
+            drop: function(event, ui) { handleDrop(ui.draggable, $(this).data('group-id')); }
+        });
 
-                contentHtml += `
-                    <span class="word-tag ${isSelected ? 'tag-selected' : ''}" data-tag-text="${escape(tagText)}" title="Alias: ${alias || 'none'}">
-                        ${tagText}
-                        <i class="fas fa-tag alias-icon"></i>
-                        ${alias ? `<small class="tag-alias">${alias}</small>` : ''}
-                    </span>`;
+        selectors.groupsWrapper.droppable({
+            accept: ".word-tag",
+            drop: function(event, ui) {
+                if ($(event.target).is(selectors.groupsWrapper)) { handleDrop(ui.draggable, null); }
             }
-        }
-
-        return `<div class="phrase-card" data-phrase-id="${phrase.id}">${contentHtml}</div>`;
+        });
     }
 
-    /** The core logic for handling tag clicks and merging. */
-    function handleTagClick(clickedTag) {
-        const fullTagText = unescape(clickedTag.data('tag-text'));
-        const lowerCaseTag = fullTagText.toLowerCase();
-        const isSelected = clickedTag.hasClass('tag-selected');
-        const card = clickedTag.closest('.phrase-card');
+    function handleDrop(draggedTag, targetGroupId) {
+        const tagId = draggedTag.data('tag-id');
+        let sourceGroup = null, tagIndex = -1;
 
-        if (isSelected) {
-            // UN-SELECTING: Delete the tag and let its words become individual grey tags.
-            tagState.delete(lowerCaseTag);
-        } else {
-            // SELECTING: Add the tag.
-            tagState.set(lowerCaseTag, tagState.get(lowerCaseTag) || { alias: '' });
+        for (const group of state.groups) {
+            const index = group.tags.findIndex(t => t.id === tagId);
+            if (index > -1) { sourceGroup = group; tagIndex = index; break; }
         }
         
-        // Post-Action: Always check for new merges on the card.
-        const merged = attemptMergeOnCard(card);
+        if (!sourceGroup) return;
+        const [movedTag] = sourceGroup.tags.splice(tagIndex, 1);
+
+        if (targetGroupId) {
+            const targetGroup = state.groups.find(g => g.id === targetGroupId);
+            targetGroup.tags.push(movedTag);
+        } else {
+            state.groups.push({
+                id: `group-new-${Date.now()}`,
+                categoryId: 'none',
+                tags: [movedTag]
+            });
+        }
         
-        // Final Step: Re-render everything to sync global state.
-        // If a merge happened, it will be reflected. If not, the simple select/unselect will be.
+        if (sourceGroup.tags.length === 0) {
+            state.groups = state.groups.filter(g => g.id !== sourceGroup.id);
+        }
+        
         render();
     }
 
-    function checkForMerges() {
-        let stateWasModified;
-        do {
-            stateWasModified = false;
-            // We must iterate over a copy of keys, as the map is modified in the loop
-            const currentTags = Array.from(tagState.keys());
+    function attachEventListeners() {
+        selectors.paintToggle.off().on('change', function() {
+            state.isPaintMode = $(this).is(':checked');
+            render();
+        });
 
-            for (const phrase of originalPhrases) {
-                const tokens = phraseService.tokenizePhrase(phrase.text);
-                
-                for (let i = 0; i < tokens.length; i++) {
-                    if (!tokens[i].isWord) continue;
+        selectors.categorySelect.off().on('change', renderCategoryControls);
 
-                    // Check if the current token starts a potential chain
-                    if (!tagState.has(tokens[i].text.toLowerCase())) continue;
-                    
-                    // Build the longest possible chain of adjacent selected tags
-                    let chainOfTokens = [tokens[i]];
-                    let lastWordIndex = i;
-
-                    for (let j = i + 1; j < tokens.length; j++) {
-                        if (!tokens[j].isWord) continue; // Skip whitespace tokens
-
-                        const wordToTest = tokens[j].text.toLowerCase();
-                        if (tagState.has(wordToTest)) {
-                            // Add all intermediate tokens (spaces) and the word itself
-                            for (let k = lastWordIndex + 1; k <= j; k++) {
-                                chainOfTokens.push(tokens[k]);
-                            }
-                            lastWordIndex = j;
-                        } else {
-                            break; // The chain ends here
-                        }
-                    }
-
-                    // If we found a chain of 2 or more words, merge them
-                    if (chainOfTokens.filter(t => t.isWord).length > 1) {
-                        const componentTags = chainOfTokens.filter(t => t.isWord).map(t => t.text.toLowerCase());
-                        const mergedTagText = chainOfTokens.map(t => t.text).join('');
-                        
-                        // Update state: delete components, add the new merged tag
-                        componentTags.forEach(tag => tagState.delete(tag));
-                        tagState.set(mergedTagText.toLowerCase(), { alias: '' });
-                        
-                        stateWasModified = true;
-                        break; // Break from inner loop to restart the whole process
+        selectors.groupsContainer.off()
+            .on('click', '#add-new-group-card', () => addGroupModal.show())
+            .on('click', '.group-card:not(.add-group-card)', function() {
+                if (state.isPaintMode) {
+                    const groupId = $(this).data('group-id');
+                    const group = state.groups.find(g => g.id === groupId);
+                    if (group) {
+                        group.categoryId = selectors.categorySelect.val();
+                        render();
                     }
                 }
-                if (stateWasModified) break; // Break from outer loop
-            }
-        } while (stateWasModified); // Keep running as long as merges are happening
-    } 
-    
-    /** Checks for and performs tag merging within a card. */
-    function attemptMergeOnCard(card) {
-        const tagsAndSpaces = card.children('span');
-        let hasMerged = false;
+            });
         
-        for (let i = 0; i < tagsAndSpaces.length - 1; i++) {
-            const current = $(tagsAndSpaces[i]);
-            if (!current.hasClass('tag-selected')) continue;
-
-            // Find the next actual word-tag, skipping whitespace
-            let nextIndex = i + 1;
-            while(nextIndex < tagsAndSpaces.length && !$(tagsAndSpaces[nextIndex]).hasClass('word-tag')) {
-                nextIndex++;
-            }
-            if (nextIndex >= tagsAndSpaces.length) continue;
-            const next = $(tagsAndSpaces[nextIndex]);
-
-            // Check if the next tag is also selected
-            if (next.hasClass('tag-selected')) {
-                const oldTag1 = unescape(current.data('tag-text')).toLowerCase();
-                const oldTag2 = unescape(next.data('tag-text')).toLowerCase();
-
-                // Collect all text between the two tags (for multiple spaces)
-                const spaceText = tagsAndSpaces.slice(i + 1, nextIndex).text();
-                const newTagText = `${unescape(current.data('tag-text'))}${spaceText}${unescape(next.data('tag-text'))}`;
-                
-                // Update global state: remove old tags, add new one
-                tagState.delete(oldTag1);
-                tagState.delete(oldTag2);
-                tagState.set(newTagText.toLowerCase(), { alias: '' });
-                
-                hasMerged = true;
-                break; // Exit after one merge to restart the process cleanly
-            }
-        }
-        // If a merge happened, the calling function will handle the re-render.
-        return hasMerged;
-    }
-
-    function attachEventListeners() {
-        selectors.cardsContainer.off()
-        .on('click', '.word-tag', function() { handleTagClick($(this)); })
-        .on('click', '.alias-icon', function(e) {
-            e.stopPropagation();
-            const tagSpan = $(this).closest('.word-tag');
-            const tagText = unescape(tagSpan.data('tag-text'));
-            const lowerCaseTag = tagText.toLowerCase();
-
-            if (!tagState.has(lowerCaseTag)) { tagState.set(lowerCaseTag, { alias: '' }); }
-            
-            // CORRECTED: Generate suggestions for aliases.
-            const currentAlias = tagState.get(lowerCaseTag).alias;
-            const suggestedAliases = generateWordForms(tagText);
-            const promptDefault = currentAlias || suggestedAliases.join(', ');
-
-            const newAlias = prompt(`Enter alternate names for "${tagText}" (comma-separated):`, promptDefault);
-
-            if (newAlias !== null) {
-                tagState.get(lowerCaseTag).alias = newAlias.trim();
-                render();
-            }
+        selectors.editCategoriesBtn.off().on('click', () => {
+            renderCategoriesModal();
+            categoryModal.show();
         });
-        
 
-        selectors.addPhraseBtn.off().on('click', function() {
-            const newPhraseText = prompt("Enter a new phrase to tag:");
-            if (newPhraseText && newPhraseText.trim()) {
-                originalPhrases.unshift({
-                    id: `phrase-manual-${Date.now()}`,
-                    text: newPhraseText.trim()
-                });
-                render();
-            }
-        });
-        
-        selectors.downloadBtn.off().on('click', function() {
-            const stateToSave = {
-                phrases: originalPhrases,
-                tags: Array.from(tagState.entries()) // This correctly saves the [key, {alias}] pairs
-            };
-            const dataStr = JSON.stringify(stateToSave, null, 2);
+        selectors.downloadBtn.off().on('click', () => {
+            const dataStr = JSON.stringify(state, null, 2);
             const blob = new Blob([dataStr], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `Step3_tags_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `Step3_groups_${new Date().toISOString().slice(0,10)}.json`;
             a.click();
             URL.revokeObjectURL(a.href);
         });
@@ -321,86 +268,139 @@ const Step3Controller = (function(logger, ui, phraseService) {
             reader.onload = (event) => {
                 try {
                     const savedState = JSON.parse(event.target.result);
-                    if (!savedState.phrases || !savedState.tags) throw new Error("Invalid format");
-
+                    if (!savedState.categories || !savedState.groups) throw new Error("Invalid format");
+                    
                     const performLoad = (mode) => {
                         if (mode === 'replace') {
                             loadState(savedState);
                         } else if (mode === 'merge') {
-                            // Merge Phrases (unique by text)
-                            const existingPhrases = new Map(originalPhrases.map(p => [p.text, p]));
-                            savedState.phrases.forEach(p => {
-                                if (!existingPhrases.has(p.text)) {
-                                    originalPhrases.push(p);
+                            const existingGroups = new Map(state.groups.flatMap(g => g.tags).map(t => [t.text, g]));
+                            savedState.groups.forEach(g => {
+                                const firstTag = g.tags[0]?.text;
+                                if(firstTag && !existingGroups.has(firstTag)) {
+                                    state.groups.push(g);
                                 }
                             });
-                            // Merge Tags (existing tags take priority)
-                            const loadedTags = new Map(savedState.tags);
-                            loadedTags.forEach((value, key) => {
-                                if (!tagState.has(key)) {
-                                    tagState.set(key, value);
-                                }
+                            
+                            const existingCategories = new Map(state.categories.map(c => [c.name, c]));
+                            savedState.categories.forEach(c => {
+                                if(!existingCategories.has(c.name)) state.categories.push(c);
                             });
                             render();
                         }
                     };
                     
-                    if (originalPhrases.length > 0) {
+                    if (state.groups.length > 0) {
                         ui.showMergeConflictModal(choice => performLoad(choice));
                     } else {
                         performLoad('replace');
                     }
-                } catch (err) { /* ... */ }
+                } catch (err) { alert("Error loading Step 3 file."); logger.error(err); }
             };
             reader.readAsText(file);
             $(this).val('');
         });
 
         const proceedAction = function() {
-            // 1. Save the final tag data to the global state for Step 4 to access.
             if (!window.appState.step3) window.appState.step3 = {};
-            window.appState.step3.tags = tagState;
-            logger.info("Proceeding to Step 4 with tagged data (including aliases).");
-            
-            // 2. Call the navigation callback to switch to the next step.
-            if (navCallback) {
-                navCallback(4);
-            } else {
-                logger.error("Navigation callback is not defined. Cannot proceed to Step 4.");
-                alert("Error: Cannot navigate to the next step.");
-            }
+            window.appState.step3.finalData = state;
+            alert("Proceeding to Step 4 (to be built)!");
         };
         selectors.proceedTopBtn.off().on('click', proceedAction);
         selectors.proceedBottomBtn.off().on('click', proceedAction);
     }
+    
+    function renderCategoriesModal() {
+        const modalBody = $('#edit-categories-modal .modal-body ul');
+        modalBody.empty();
+        state.categories.forEach(cat => {
+            if (cat.removable === false) return;
+            modalBody.append(`
+                <li class="list-group-item d-flex align-items-center">
+                    <span class="category-color-dot me-2" style="background-color:${cat.color}; width:1.5rem; height:1.5rem; border: 1px solid #fff;"></span>
+                    <span class="flex-grow-1">${cat.name}</span>
+                    <button class="btn btn-sm btn-outline-danger" data-cat-id="${cat.id}"><i class="fas fa-trash"></i></button>
+                </li>
+            `);
+        });
+    }
 
-    /**
-     * Generates common variations of a word for alias suggestions.
-     * @param {string} word - The base word.
-     * @returns {Array<string>} An array of suggested variations.
-     */
-    function generateWordForms(word) {
-        const suggestions = new Set();
-        const lowerWord = word.toLowerCase();
+    function injectModals() {
+        if ($('#edit-categories-modal').length > 0) return;
+        $('body').append(`
+            <div class="modal fade" id="edit-categories-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Edit Categories</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <ul class="list-group mb-3"></ul>
+                        <div class="input-group">
+                            <input type="text" id="new-category-name" class="form-control" placeholder="New category name">
+                            <button id="add-category-btn" class="btn btn-primary">Add</button>
+                        </div>
+                    </div>
+                </div></div>
+            </div>
+            <div class="modal fade" id="add-group-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Create New Group</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="new-group-tags" class="form-label">Tags (comma-separated)</label>
+                            <input type="text" id="new-group-tags" class="form-control" placeholder="e.g., headache, pain, dull">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-group-category" class="form-label">Category</label>
+                            <select id="new-group-category" class="form-select"></select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="create-group-confirm" class="btn btn-primary">Create</button>
+                    </div>
+                </div></div>
+            </div>
+        `);
+        categoryModal = new bootstrap.Modal($('#edit-categories-modal'));
+        addGroupModal = new bootstrap.Modal($('#add-group-modal'));
 
-        // Simple pluralization
-        if (lowerWord.endsWith('y')) {
-            suggestions.add(lowerWord.slice(0, -1) + 'ies');
-        } else if (lowerWord.endsWith('s')) {
-            suggestions.add(lowerWord + 'es');
-        } else {
-            suggestions.add(lowerWord + 's');
-        }
-
-        // Simple verb forms
-        if (!lowerWord.endsWith('e')) {
-            suggestions.add(lowerWord + 'e');
-        }
-        suggestions.add(lowerWord + 'ed');
-        suggestions.add(lowerWord + 'ing');
-
-        return Array.from(suggestions);
-    }    
+        $('#edit-categories-modal').on('click', '#add-category-btn', function() {
+            const nameInput = $('#new-category-name');
+            const name = nameInput.val().trim();
+            if (name && !state.categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+                state.categories.push({ id: `cat-${Date.now()}`, name, color: '#cccccc', removable: true });
+                nameInput.val('');
+                renderCategoriesModal();
+                renderCategoryControls();
+            }
+        });
+        $('#edit-categories-modal').on('click', '.list-group-item button', function() {
+            const catId = $(this).data('cat-id');
+            state.categories = state.categories.filter(c => c.id !== catId);
+            state.groups.forEach(g => { if(g.categoryId === catId) g.categoryId = 'none'; });
+            renderCategoriesModal();
+            render();
+        });
+        $('#add-group-modal').on('show.bs.modal', function() {
+            const catSelect = $('#new-group-category');
+            catSelect.empty();
+            state.categories.forEach(c => catSelect.append(`<option value="${c.id}">${c.name}</option>`));
+        });
+        $('#add-group-modal').on('click', '#create-group-confirm', function() {
+            const tagsInput = $('#new-group-tags');
+            const tags = tagsInput.val().split(',').map(t => t.trim()).filter(Boolean);
+            if (tags.length === 0) return;
+            
+            const newGroup = {
+                id: `group-manual-${Date.now()}`,
+                categoryId: $('#new-group-category').val(),
+                tags: tags.map(t => ({ id: `tag-${t}-${Date.now()}`, text: t }))
+            };
+            state.groups.unshift(newGroup);
+            tagsInput.val('');
+            addGroupModal.hide();
+            render();
+        });
+    }
 
     return { init };
 

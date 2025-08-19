@@ -7,6 +7,7 @@
     <title>Application - Symptom Diary Visualizer</title>
     <link rel="stylesheet" href="lib/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="lib/fontawesome/all.min.css">
+    <link rel="stylesheet" href="lib/jquery/jquery-ui.css"> <!-- For Drag & Drop -->
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -121,35 +122,40 @@
 
 
 
-            <!-- ===== STEP 3: tag phrases ===== -->
+            <!-- ===== STEP 3: group and categorize words ===== -->
             <div id="step-3-content" class="app-step" style="display: none;">
                 <div id="step3-sticky-header" class="sticky-top bg-dark py-2 mb-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <h5 class="mb-0 me-3">Step 3: Select Tags</h5>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <h5 class="mb-0 me-3">Step 3: Group & Categorize Words</h5>
+                        
+                        <!-- Category Controls -->
+                        <div class="form-check form-switch me-2" title="Toggle Category Painting Mode">
+                            <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle">
+                            <label class="form-check-label" for="category-paint-toggle">Paint Mode</label>
+                        </div>
+                        <select id="category-select" class="form-select form-select-sm w-auto" disabled></select>
+                        <button id="category-color-picker" class="btn btn-sm category-color-dot" disabled></button>
+                        <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
+
                         <div class="ms-auto d-flex gap-2">
                             <input type="file" id="upload-step3-state" class="d-none" accept=".json">
-                            <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Tags"><i class="fas fa-upload me-2"></i>Load</label>
-                            <button id="download-step3-state" class="btn btn-sm btn-outline-secondary" title="Save Step 3 Tags"><i class="fas fa-download me-2"></i>Save</button>
+                            <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Groups"><i class="fas fa-upload me-2"></i>Load</label>
+                            <button id="download-step3-state" class="btn btn-sm btn-outline-secondary" title="Save Step 3 Groups"><i class="fas fa-download me-2"></i>Save</button>
                             <button id="step3-proceed-top" class="btn btn-sm btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
                 </div>
-                <p class="text-body-secondary text-center mb-3">
-                    Click on words to select them as tags. Selected tags turn blue and are synced globally. Adjacent selected tags will automatically merge. Click a blue tag to unselect it.
-                </p>                
 
-                <div id="phrase-cards-container">
-                    <!-- Phrase cards will be dynamically inserted here -->
+                <div id="groups-container-wrapper">
+                    <div id="groups-container">
+                        <!-- Groups will be dynamically inserted here -->
+                    </div>
                 </div>
-
-                <button id="step3-add-phrase-btn" class="btn btn-lg btn-success rounded-circle" title="Add New Phrase">
-                    <i class="fas fa-plus"></i>
-                </button>
                 
-                 <div class="text-center mt-4">
+                <div class="text-center mt-4">
                     <button id="step3-proceed-bottom" class="btn btn-lg btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
                 </div>
-            </div>           
+            </div>         
 
             <!-- ===== NEW STEP 4: ADD DETAILS ===== -->
             <div id="step-4-content" class="app-step" style="display: none;">
@@ -223,6 +229,8 @@
     </div>
     
     <script src="lib/jquery/jquery.min.js"></script>
+    <script src="lib/jquery/jquery-ui.min.js"></script>
+    <script src="lib/vanilla-picker.min.js"></script>    
     <script src="lib/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/logger.js"></script>
     <script src="js/dummy-data.js"></script>
