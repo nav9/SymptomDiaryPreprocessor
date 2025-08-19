@@ -14,7 +14,8 @@ const Step3Controller = (function(logger, ui, phraseService) {
     let navCallback = null;
     let categoryModal = null;
     let addGroupModal = null;
-    let newCategoryColor = '#cccccc'; // Default for new categories
+    let editSingleCategoryModal = null;
+    let newCategoryColor = '#cccccc';
 
     function setDefaultState() {
         state = {
@@ -38,10 +39,8 @@ const Step3Controller = (function(logger, ui, phraseService) {
         navCallback = navigationCallback;
         setDefaultState();
         injectModals();
-
-        if (payload) {
-            loadState(payload);
-        } else {
+        if (payload) { loadState(payload); } 
+        else {
             const dataFromStep2 = window.appState?.step2?.finalData;
             if (!dataFromStep2 || Object.keys(dataFromStep2).length === 0) {
                 selectors.groupsContainer.html('<div class="alert alert-warning">No data to process. Please complete Step 2 or load a file.</div>');
@@ -53,24 +52,16 @@ const Step3Controller = (function(logger, ui, phraseService) {
         }
     }
 
-    function processNewData(dataFromStep2) {
-        setTimeout(() => {
-            ui.showLoading(`Extracting unique words...`);
-            const uniqueWords = phraseService.extractUniqueWords(dataFromStep2);
-            
-            ui.showLoading(`Categorizing ${uniqueWords.size} words...`);
-            setTimeout(() => {
-                state.groups = phraseService.autoGroupWords(uniqueWords);
-                
-                ui.showLoading(`Sorting ${state.groups.length} groups...`);
-                setTimeout(() => {
-                    state.groups.sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
-                    render();
-                    attachEventListeners();
-                    ui.hideLoading();
-                }, 50);
-            }, 50);
-        }, 50);
+    async function processNewData(dataFromStep2) {
+        ui.showLoading(`Extracting unique words...`);
+        const uniqueWords = phraseService.extractUniqueWords(dataFromStep2);
+        const progressCallback = (processed, total) => ui.showLoading(`Categorizing words... (${processed} / ${total})`);
+        state.groups = await phraseService.autoGroupWords(uniqueWords, progressCallback);
+        ui.showLoading(`Sorting ${state.groups.length} groups...`);
+        sortGroups();
+        render();
+        attachEventListeners();
+        ui.hideLoading();
     }
 
     function loadState(savedState) {
@@ -127,6 +118,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         updatePaletteArrows();
     }
 
+
     function renderGroups() {
         selectors.groupsContainer.empty();
         
@@ -135,7 +127,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
                 <div class="flex-grow-1">
                     <input type="search" id="tag-search-input" class="form-control form-control-sm" placeholder="Search for tags...">
                 </div>
-                <button id="add-new-group-card" class="btn btn-sm btn-success" title="Create a new group">
+                <button id="add-new-group-card" class="btn btn-sm btn-success flex-shrink-0" title="Create a new group">
                     <i class="fas fa-plus me-1"></i> New Group
                 </button>
             </div>
@@ -155,7 +147,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         });
         selectors.groupsContainer.append(groupsArea);
         setupDragAndDrop();
-    }   
+    }
 
     function updatePaletteArrows() {
         const scrollArea = $('.category-palette-scroll');
@@ -217,7 +209,9 @@ const Step3Controller = (function(logger, ui, phraseService) {
             if (index > -1) { sourceGroup = group; tagIndex = index; break; }
         }
         
-        if (!sourceGroup) return;
+        if (!sourceGroup) return; // Tag not found, abort
+        if (sourceGroup.id === targetGroupId) return; // Dropped in the same group, abort
+
         const [movedTag] = sourceGroup.tags.splice(tagIndex, 1);
 
         if (targetGroupId) {
@@ -226,7 +220,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         } else {
             state.groups.push({
                 id: `group-new-${Date.now()}`,
-                categoryId: 'none',
+                categoryId: 'none', // Dropping in empty space defaults to None category
                 tags: [movedTag]
             });
         }
@@ -344,9 +338,9 @@ const Step3Controller = (function(logger, ui, phraseService) {
         state.categories.forEach(cat => {
             if (!cat.removable) return;
             modalBody.append(`<li class="list-group-item d-flex align-items-center gap-2">
-                <button class="btn btn-sm category-color-dot edit-color-btn" data-cat-id="${cat.id}" style="background-color:${cat.color};"></button>
+                <span class="category-color-dot" style="background-color:${cat.color};"></span>
                 <span class="flex-grow-1">${cat.name}</span>
-                <button class="btn btn-sm btn-outline-secondary edit-name-btn" data-cat-id="${cat.id}" title="Rename"><i class="fas fa-pencil-alt"></i></button>
+                <button class="btn btn-sm btn-outline-secondary edit-cat-btn" data-cat-id="${cat.id}" title="Edit"><i class="fas fa-pencil-alt"></i></button>
                 <button class="btn btn-sm btn-outline-danger delete-cat-btn" data-cat-id="${cat.id}" title="Delete"><i class="fas fa-trash"></i></button>
             </li>`);
         });
@@ -361,18 +355,45 @@ const Step3Controller = (function(logger, ui, phraseService) {
                     <div class="modal-body">
                         <ul class="list-group mb-3"></ul>
                         <div class="input-group">
-                            <button id="new-category-color-swatch" class="btn category-color-dot"></button>
+                            <input type="color" id="new-category-color-input" class="form-control form-control-color" value="${newCategoryColor}">
                             <input type="text" id="new-category-name" class="form-control" placeholder="New category name">
                             <button id="add-category-btn" class="btn btn-primary">Add</button>
                         </div>
                     </div>
                 </div></div>
             </div>
-            <div class="modal fade" id="add-group-modal" tabindex="-1">...</div>
+            <div class="modal fade" id="edit-single-category-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Edit Category</h5></div>
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-category-id-input">
+                        <div class="mb-3"><label for="edit-category-name-input" class="form-label">Name</label><input type="text" id="edit-category-name-input" class="form-control"></div>
+                        <div class="mb-3"><label for="edit-category-color-input" class="form-label">Color</label><input type="color" id="edit-category-color-input" class="form-control form-control-color"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" id="save-category-changes-btn" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </div></div>
+            </div>
+            <div class="modal fade" id="add-group-modal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title">Create New Group</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <div class="mb-3"><label for="new-group-tags" class="form-label">Tags (comma-separated)</label><input type="text" id="new-group-tags" class="form-control" placeholder="e.g., headache, pain, dull"></div>
+                        <div class="mb-3"><label for="new-group-category" class="form-label">Category</label><select id="new-group-category" class="form-select"></select></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" id="create-group-confirm" class="btn btn-primary">Create</button>
+                    </div>
+                </div></div>
+            </div>
         `);
         
-        categoryModal = new bootstrap.Modal($('#edit-categories-modal'));
-        addGroupModal = new bootstrap.Modal($('#add-group-modal'));     
+        // CORRECTED: Pass the raw DOM element [0] to the Bootstrap constructor
+        categoryModal = new bootstrap.Modal($('#edit-categories-modal')[0]);
+        addGroupModal = new bootstrap.Modal($('#add-group-modal')[0]);
+        editSingleCategoryModal = new bootstrap.Modal($('#edit-single-category-modal')[0]); 
 
         $('#new-category-color-swatch').css('background-color', newCategoryColor).on('click', function() {
             new Picker({
@@ -384,25 +405,44 @@ const Step3Controller = (function(logger, ui, phraseService) {
         $('#add-category-btn').on('click', function() {
             const name = $('#new-category-name').val().trim();
             if (name && !state.categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+                newCategoryColor = $('#new-category-color-input').val();
                 state.categories.push({ id: `cat-${Date.now()}`, name, color: newCategoryColor, removable: true });
                 $('#new-category-name').val('');
-                newCategoryColor = '#cccccc'; // Reset for next time
-                $('#new-category-color-swatch').css('background-color', newCategoryColor);
                 renderCategoriesModal();
                 renderCategoryControls();
             }
         });
 
-        $('#edit-categories-modal').on('click', '.edit-name-btn', function() {
+        $('#save-category-changes-btn').on('click', function() {
+            const catId = $('#edit-category-id-input').val();
+            const category = state.categories.find(c => c.id === catId);
+            if (category) {
+                const newName = $('#edit-category-name-input').val().trim();
+                if(newName) category.name = newName;
+                category.color = $('#edit-category-color-input').val();
+            }
+            editSingleCategoryModal.hide();
+            renderCategoriesModal();
+            render();
+        });        
+
+        $('#edit-categories-modal').on('click', '.edit-cat-btn', function() {
             const catId = $(this).data('cat-id');
             const category = state.categories.find(c => c.id === catId);
-            const newName = prompt('Enter new category name:', category.name);
-            if (newName && newName.trim()) {
-                category.name = newName.trim();
-                renderCategoriesModal();
-                renderCategoryControls();
-            }
+            $('#edit-category-id-input').val(category.id);
+            $('#edit-category-name-input').val(category.name);
+            $('#edit-category-color-input').val(category.color);
+            editSingleCategoryModal.show();
         });
+
+        $('#edit-categories-modal').on('click', '.delete-cat-btn', function() {
+            const catId = $(this).data('cat-id');
+            state.categories = state.categories.filter(c => c.id !== catId);
+            state.groups.forEach(g => { if(g.categoryId === catId) g.categoryId = 'none'; });
+            renderCategoriesModal();
+            render();
+        });
+
         $('#edit-categories-modal').on('click', '.edit-color-btn', function() {
             const catId = $(this).data('cat-id');
             const category = state.categories.find(c => c.id === catId);
