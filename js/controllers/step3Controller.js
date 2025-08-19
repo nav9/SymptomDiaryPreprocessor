@@ -96,9 +96,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         
     /** Sorts groups alphabetically by their first tag. */
     function sortGroups() {
-        state.groups = state.groups
-            .filter(g => g.tags && g.tags.length > 0)
-            .sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
+        state.groups = state.groups.filter(g => g.tags && g.tags.length > 0).sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
     }
 
     function render() {
@@ -108,28 +106,31 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
     function renderCategoryControls() {
         const palette = selectors.categoryPalette;
-        palette.empty();
-
         const controlsHtml = `
-            <div class="d-flex align-items-center gap-3">
-                <div class="form-check form-switch" title="Assign the tags in any group to the selected category by clicking any tag in the group below">
-                    <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle" ${state.isPaintMode ? 'checked' : ''}>
-                    <label class="form-check-label" for="category-paint-toggle">Activate</label>
+            <div class="category-palette-wrapper">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check form-switch" title="Assign the tags in any group to the selected category by clicking any tag in the group below">
+                        <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle" ${state.isPaintMode ? 'checked' : ''}>
+                        <label class="form-check-label" for="category-paint-toggle">Activate</label>
+                    </div>
+                    <button class="btn btn-sm palette-arrow" id="palette-arrow-left"><i class="fas fa-chevron-left"></i></button>
+                    <div class="category-palette-scroll">
+                        ${state.categories.map(cat => `
+                            <div class="category-radio">
+                                <input type="radio" name="category-palette" id="cat-radio-${cat.id}" value="${cat.id}" ${state.activeCategoryId === cat.id ? 'checked' : ''}>
+                                <label for="cat-radio-${cat.id}" class="${isColorLight(cat.color) ? 'tag-text-dark' : ''}" style="background-color: ${cat.color}; ${state.activeCategoryId === cat.id ? 'font-weight: bold;' : ''}">
+                                    ${cat.name}
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button class="btn btn-sm palette-arrow" id="palette-arrow-right"><i class="fas fa-chevron-right"></i></button>
+                    <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
                 </div>
-                <div class="category-palette-scroll">
-                    ${state.categories.map(cat => `
-                        <div class="category-radio">
-                            <input type="radio" name="category-palette" id="cat-radio-${cat.id}" value="${cat.id}" ${state.activeCategoryId === cat.id ? 'checked' : ''}>
-                            <label for="cat-radio-${cat.id}" class="${isColorLight(cat.color) ? 'tag-text-dark' : ''}" style="background-color: ${cat.color};">
-                                ${cat.name}
-                            </label>
-                        </div>
-                    `).join('')}
-                </div>
-                <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
             </div>
         `;
         palette.html(controlsHtml);
+        updatePaletteArrows();
     }
 
     function renderGroups() {
@@ -153,7 +154,17 @@ const Step3Controller = (function(logger, ui, phraseService) {
             selectors.groupsContainer.append(groupHtml);
         });
         setupDragAndDrop();
-    }
+    }    
+
+    function updatePaletteArrows() {
+        const scrollArea = $('.category-palette-scroll');
+        if (scrollArea.length === 0) return;
+        const scrollLeft = scrollArea.scrollLeft();
+        const scrollWidth = scrollArea[0].scrollWidth;
+        const clientWidth = scrollArea[0].clientWidth;
+        $('#palette-arrow-left').toggle(scrollLeft > 0);
+        $('#palette-arrow-right').toggle(scrollLeft < scrollWidth - clientWidth - 1);
+    }    
 
     function setupDragAndDrop() {
         let scrollInterval = null;
@@ -234,11 +245,16 @@ const Step3Controller = (function(logger, ui, phraseService) {
             })
             .on('change', 'input[name="category-palette"]', function() {
                 state.activeCategoryId = $(this).val();
+                renderCategoryControls();
             })
             .on('click', '#edit-categories-btn', () => {
                 renderCategoriesModal();
                 categoryModal.show();
-            });
+            })
+            .on('click', '#palette-arrow-left', () => { $('.category-palette-scroll').animate({scrollLeft: '-=200px'}, 300); })
+            .on('click', '#palette-arrow-right', () => { $('.category-palette-scroll').animate({scrollLeft: '+=200px'}, 300); })
+            .on('scroll', '.category-palette-scroll', updatePaletteArrows);
+        $(window).off('resize.step3').on('resize.step3', updatePaletteArrows);            
 
         selectors.groupsContainer.off()
             .on('click', '#add-new-group-card', () => addGroupModal.show())
