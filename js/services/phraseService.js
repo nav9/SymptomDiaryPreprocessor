@@ -6,13 +6,78 @@ const PhraseService = (function(logger) {
 
     const STOP_WORDS = new Set(['a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'for', 'to', 'of', 'is', 'am', 'are', 'was', 'were', 'i', 'me', 'my', 'you', 'your', 'it', 'its']);
 
-    // --- Heuristics Data (remains the same) ---
-    const HEURISTICS_DATA = [ /* ... Full list of your data sets ... */ ];
-    const MISC_WORDS = { /* ... Full list of your misc words ... */ };
+    // --- Heuristics Data ---
+    const HEURISTICS_DATA = [
+        { categoryId: 'food', sets: [
+            new Set(['apple', 'apples']), new Set(['aaloo', 'potato']), new Set(['cheela', 'chela']), 
+            new Set(['chilli', 'chillies']), new Set(['choco', 'chocolate', 'chocolates', 'chocochip']),
+            new Set(['banana', 'bananas', 'nendran', 'yelakki']), new Set(['bread']), new Set(['carrot', 'carrots']),
+            new Set(['clove', 'cloves']), new Set(['coccinea', 'cocacinea', 'coccacinea']), new Set(['colocasia', 'colocassia']),
+            new Set(['cheese']), new Set(['chicken', 'chickens']), new Set(['coffee']), new Set(['egg', 'eggs']),
+            new Set(['fish', 'karimeen', 'sardines']), new Set(['fruit', 'fruits']), new Set(['juice', 'juices']),
+            new Set(['meat', 'mutton']), new Set(['milk', 'paal']), new Set(['nuts']), new Set(['rice']),
+            new Set(['soup']), new Set(['tea']), new Set(['vegetable', 'veggies', 'veg', 'sabji', 'sabzi']),
+            new Set(['almond', 'almonds', 'badam']), new Set(['bainganpalli', 'bainganpally']), new Set(['beet', 'beetroot']),
+            new Set(['biscuit', 'biscuits', 'biscut']), new Set(['bottle gourd']), new Set(['cabbage', 'cabb', 'gobi']),
+            new Set(['cashew', 'cashews']), new Set(['cauliflower']), new Set(['chana', 'channa', 'chickpea', 'chickpeas']),
+            new Set(['chapathi', 'chapatis']), new Set(['cherry', 'cherries']), new Set(['cinnamon']),
+            new Set(['curry', 'curries']), new Set(['dal', 'daal', 'toor', 'urad', 'moong', 'masoor']), 
+            new Set(['grape', 'grapes']), new Set(['idli', 'idlis']), new Set(['ladoo', 'laddoo']), 
+            new Set(['lime', 'limejuice']), new Set(['mango']), new Set(['masala', 'masalas']), 
+            new Set(['onion']), new Set(['orange', 'oranges', 'musambi']), new Set(['paripp', 'parippu']), 
+            new Set(['pea', 'matar']), new Set(['peanut', 'peanuts', 'groundnut']), new Set(['plantain', 'plantains', 'pazham']),
+            new Set(['plum', 'plums']), new Set(['pomegranate', 'pomogranate']), new Set(['prawn', 'prawns']),
+            new Set(['tomato', 'tomatoes']), new Set(['vada', 'vadas']),
+        ]},
+        { categoryId: 'symptom', sets: [
+            new Set(['ache', 'aches', 'achy', 'aching', 'pain', 'pained', 'painful', 'paining', 'pains', 'sore', 'soreness']),
+            new Set(['belching', 'belches', 'burp', 'burping', 'burps']), new Set(['bleeding', 'blood', 'bloody']),
+            new Set(['breathlessness', 'breathless', 'breaths']), new Set(['bruise', 'bruised', 'bruises']),
+            new Set(['chill', 'chills', 'shiver', 'shivering', 'shiverish']), new Set(['constipation']),
+            new Set(['cough', 'coughing', 'coughs']), new Set(['cramp', 'cramping', 'cramps', 'crampy']),
+            new Set(['dizziness', 'dizzy']), new Set(['drowsiness', 'drowsy', 'sleepy', 'sleepiness']),
+            new Set(['dry', 'dryness']), new Set(['fatigue', 'tired', 'tiredness', 'tiredish', 'exhaustion', 'exhausted', 'weak', 'weakness']),
+            new Set(['fever', 'feverish']), new Set(['headache', 'headacheish']), new Set(['heaviness', 'heavy']),
+            new Set(['hiccup', 'hiccups']), new Set(['hunger', 'hungry']), new Set(['itch', 'itching', 'itchiness', 'itchy', 'itchyness']),
+            new Set(['nausea']), new Set(['numb', 'numbness']), new Set(['leaky', 'voided', 'involuntary', 'involuntarily', 'leaking']),
+            new Set(['perspiration', 'sweat', 'sweating', 'sweaty']), new Set(['quiver', 'quivering', 'tremor', 'trembling']),
+            new Set(['restlessness', 'restless']), new Set(['stiffness', 'stiff']), new Set(['swelling', 'swollen']),
+            new Set(['thirst', 'thirsty', 'thirstyish']), new Set(['tingle', 'tingling', 'tinglingish', 'tinglish', 'tingly']),
+            new Set(['twitching', 'twitchy']),new Set(['infection', 'infections']), new Set(['syndrome']), new Set(['ulcer']),
+        ]},
+        { categoryId: 'anatomy', sets: [
+            new Set(['abdomen', 'abd', 'stomach']), new Set(['arm', 'arms', 'forearm', 'forearms', 'bicep', 'biceps', 'tricep', 'triceps']),
+            new Set(['back', 'backbone', 'spine']), new Set(['bladder']), new Set(['bone', 'bones']),
+            new Set(['chest']), new Set(['ear', 'ears', 'eardrum', 'eardrums', 'earlobe']),
+            new Set(['esophagus', 'eso']), new Set(['eye', 'eyes', 'eyeball', 'eyeballs', 'eyebrow', 'eyebrows', 'eyelash', 'eyelashes', 'eyelid', 'eyelids']),
+            new Set(['hand', 'hands', 'finger', 'fingers', 'thumb', 'thumbs', 'wrist']), new Set(['head']), 
+            new Set(['heart']), new Set(['hip', 'hips']), new Set(['joint', 'joints']), new Set(['kidney', 'kidneys']),
+            new Set(['leg', 'legs', 'calf', 'calves', 'knee', 'knees', 'kneecap']), new Set(['liver']),
+            new Set(['lung', 'lungs']), new Set(['mouth', 'gum', 'gums', 'lip', 'lips', 'tongue']), new Set(['muscle', 'muscles']),
+            new Set(['neck']), new Set(['nose', 'nostril', 'nostrils']), new Set(['skin', 'skins']), 
+            new Set(['teeth', 'tooth', 'canine', 'canines', 'incisor', 'incisors', 'molar', 'molars']), new Set(['throat']),
+            new Set(['scrot', 'scrotum']),
+        ]},
+        { categoryId: 'medication', sets: [
+            new Set(['amoxicillin', 'alimox', 'amox', 'novamox']), new Set(['antibiotic']), 
+            new Set(['painkiller', 'painkillers']),
+        ]},
+        { categoryId: 'contaminant', sets: [
+            new Set(['pesticide', 'pesticides']), new Set(['poison', 'poisoning']), 
+            new Set(['spoilage', 'spoiled', 'spoiling', 'spoilt']),
+        ]}
+    ];
+    
+    const MISC_WORDS = {
+        food: ['aata', 'cheera', 'chiroti', 'chiwda', 'gg', 'bep', 'chole', 'clove', 'colocasia', 'chow', 'chutney', 'bajra', 'bengal', 'besan', 'bhaji', 'bitter puli', 'bok', 'broccoli', 'carambola', 'cardamom', 'coriander', 'cowpea', 'cucumber', 'curd', 'custard', 'dates', 'elaichi', 'fenugreek', 'fig', 'garlic', 'ghee', 'ginger', 'gulab', 'halwa', 'jam', 'jamun', 'jeera', 'jowar', 'kadala', 'karela', 'khichidi', 'kodubale', 'kulith', 'kuzhalappam', 'lapsi', 'lettuce', 'maida', 'marinated', 'melon', 'millets', 'mint', 'moilee', 'moringa', 'murukku', 'muruku', 'mustard', 'namdhari', 'namdharis', 'noodles', 'oregano', 'paalappam', 'papaya', 'paysam', 'pepper', 'pickle', 'pineapple', 'pindi', 'pongal', 'poori', 'porridge', 'pulses', 'pumpkin', 'ragi', 'raisins', 'rajgira', 'rava', 'roasted', 'sambar', 'sameiya', 'sapota', 'sauce', 'sesame', 'soan', 'soya', 'soyabeans', 'spinach', 'starfruit', 'stew', 'sugar', 'tamarind', 'turmeric', 'tutti', 'uddin', 'vanilla', 'vellarika', 'watermelon', 'wheat', 'yam'],
+        symptom: ['clench', 'clenching', 'clicking', 'burning', 'choking', 'discomfort', 'disoriented', 'insomnia', 'malaise', 'readjustment', 'spasm', 'tightness', 'palpitations', 'pang', 'spasms', 'spasming', 'uneasy', 'yawning', 'flu', 'inflammation', 'sarcoidosis', 'sclerosis', 'sjogrens', 'syncope', 'pimple', 'uti'],
+        anatomy: ['coccyx', 'appendix', 'brain', 'diaphragm', 'face', 'cheek', 'cheekbone', 'cheeks', 'chin', 'collar', 'collarbone', 'forehead', 'gallbladder', 'pancreas', 'prostate', 'uvula', 'ankle', 'armpit', 'armpits', 'capillary', 'carpal', 'elbow', 'fingernail', 'fingernails', 'fingerprint', 'fingertip', 'foot', 'feet', 'glands', 'gland', 'glans', 'groin', 'gumline', 'hair', 'hairs', 'heel', 'humerus', 'intestine', 'intestines', 'jaw', 'jawline', 'jawlines', 'jaws', 'knuckle', 'knuckles', 'lobe', 'lymph', 'metacarpals', 'metatarsal', 'nail', 'nails', 'nerve', 'nerves', 'nipple', 'pelvic', 'premolar', 'premolars', 'pubis', 'pube', 'rib', 'ribcage', 'ribs', 'scalp', 'shoulder', 'shoulderblade', 'shoulders', 'sole', 'soles', 'tendon', 'toes', 'trapezius'],
+        medication: ['anticholinergics', 'dolo', 'enzoheal', 'metrogyl', 'pantoprezol', 'soframycin', 'vicks'],
+        contaminant: ['bacteria', 'chemical', 'dirt', 'dust']
+    };
     
     let HEURISTICS_LOOKUP = null;
 
-    /** Build the fast lookup map from the heuristics data. */
     function buildHeuristicsLookup() {
         if (HEURISTICS_LOOKUP) return;
         
@@ -21,6 +86,7 @@ const PhraseService = (function(logger) {
         HEURISTICS_DATA.forEach(categoryData => {
             categoryData.sets.forEach(wordSet => {
                 wordSet.forEach(word => {
+                    // CORRECTED: The variable here is `wordSet`, not `groupSet`.
                     HEURISTICS_LOOKUP.set(word, { categoryId: categoryData.categoryId, groupSet: wordSet });
                 });
             });
@@ -37,7 +103,6 @@ const PhraseService = (function(logger) {
         logger.info(`Heuristics lookup map built with ${HEURISTICS_LOOKUP.size} keywords.`);
     }
 
-    /** Extracts unique, non-stop-words from the Step 2 data. */
     function extractUniqueWords(step2FinalData) {
         const uniqueWords = new Set();
         const splitter = /[.,;()\[\]\s]/g;
@@ -55,71 +120,45 @@ const PhraseService = (function(logger) {
             });
         });
         logger.info(`Extracted ${uniqueWords.size} unique words.`);
-        return Array.from(uniqueWords); // Return as Array for chunking
+        return uniqueWords;
     }
 
-    /**
-     * Asynchronously groups words in chunks to prevent UI blocking and provide progress updates.
-     * @param {string[]} uniqueWords - An array of unique words.
-     * @param {function(number, number)} progressCallback - Called with (processed, total).
-     * @returns {Promise<Array<Object>>} A promise that resolves with the final groups array.
-     */
-    function autoGroupWords(uniqueWords, progressCallback) {
-        return new Promise(resolve => {
-            buildHeuristicsLookup();
-            const categorizedGroups = new Map();
-            const ungroupedWords = new Set();
-            const totalWords = uniqueWords.length;
-            const chunkSize = 250; // Process 250 words per chunk
-            let currentIndex = 0;
+    function autoGroupWords(uniqueWords) {
+        buildHeuristicsLookup();
+        const categorizedGroups = new Map();
+        const ungroupedWords = [];
 
-            function processChunk() {
-                const limit = Math.min(currentIndex + chunkSize, totalWords);
-                
-                for (let i = currentIndex; i < limit; i++) {
-                    const word = uniqueWords[i];
-                    const heuristic = HEURISTICS_LOOKUP.get(word);
-                    if (heuristic) {
-                        if (!categorizedGroups.has(heuristic.groupSet)) {
-                            categorizedGroups.set(heuristic.groupSet, {
-                                categoryId: heuristic.categoryId,
-                                tags: []
-                            });
-                        }
-                        categorizedGroups.get(heuristic.groupSet).tags.push({ id: `tag-${word}-${Math.random()}`, text: word });
-                    } else {
-                        ungroupedWords.add(word);
-                    }
-                }
-
-                currentIndex = limit;
-                progressCallback(currentIndex, totalWords);
-
-                if (currentIndex < totalWords) {
-                    setTimeout(processChunk, 0); // Yield to main thread
-                } else {
-                    // Final pass for ungrouped words
-                    ungroupedWords.forEach(word => {
-                        const newSet = new Set([word]);
-                        categorizedGroups.set(newSet, {
-                            categoryId: 'none',
-                            tags: [{ id: `tag-${word}-${Math.random()}`, text: word }]
-                        });
+        uniqueWords.forEach(word => {
+            const heuristic = HEURISTICS_LOOKUP.get(word);
+            if (heuristic) {
+                if (!categorizedGroups.has(heuristic.groupSet)) {
+                    categorizedGroups.set(heuristic.groupSet, {
+                        categoryId: heuristic.categoryId,
+                        tags: []
                     });
-
-                    const finalGroups = Array.from(categorizedGroups.values()).map(groupData => ({
-                        id: `group-${groupData.tags[0].text}-${Math.random()}`,
-                        categoryId: groupData.categoryId,
-                        tags: groupData.tags.sort((a,b) => a.text.localeCompare(b.text))
-                    }));
-
-                    logger.info(`Created ${finalGroups.length} initial word groups.`);
-                    resolve(finalGroups);
                 }
+                categorizedGroups.get(heuristic.groupSet).tags.push({ id: `tag-${word}-${Math.random()}`, text: word });
+            } else {
+                ungroupedWords.push(word);
             }
-
-            processChunk(); // Start the process
         });
+
+        ungroupedWords.forEach(word => {
+            const newSet = new Set([word]);
+            categorizedGroups.set(newSet, {
+                categoryId: 'none',
+                tags: [{ id: `tag-${word}-${Math.random()}`, text: word }]
+            });
+        });
+
+        const finalGroups = Array.from(categorizedGroups.values()).map(groupData => ({
+            id: `group-${groupData.tags[0].text}-${Math.random()}`,
+            categoryId: groupData.categoryId,
+            tags: groupData.tags.sort((a,b) => a.text.localeCompare(b.text))
+        }));
+
+        logger.info(`Created ${finalGroups.length} initial word groups.`);
+        return finalGroups;
     }
 
     return {
@@ -128,8 +167,6 @@ const PhraseService = (function(logger) {
     };
 
 })(logger);
-
-
 
 
 

@@ -56,26 +56,24 @@ const Step3Controller = (function(logger, ui, phraseService) {
         }
     }
 
-    async function processNewData(dataFromStep2) {
-        ui.showLoading(`Extracting unique words...`);
-        const uniqueWords = phraseService.extractUniqueWords(dataFromStep2);
-        
-        const progressCallback = (processed, total) => {
-            ui.showLoading(`Categorizing words... (${processed} / ${total})`);
-        };
-
-        state.groups = await phraseService.autoGroupWords(uniqueWords, progressCallback);
-        
-        ui.showLoading(`Sorting ${state.groups.length} groups...`);
-        
-        // BUG FIX: Filter out any potentially empty groups before sorting to prevent errors.
-        state.groups = state.groups
-            .filter(g => g.tags && g.tags.length > 0)
-            .sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
-        
-        render();
-        attachEventListeners();
-        ui.hideLoading();
+    function processNewData(dataFromStep2) {
+        setTimeout(() => {
+            ui.showLoading(`Extracting unique words...`);
+            const uniqueWords = phraseService.extractUniqueWords(dataFromStep2);
+            
+            ui.showLoading(`Categorizing ${uniqueWords.size} words...`);
+            setTimeout(() => {
+                state.groups = phraseService.autoGroupWords(uniqueWords);
+                
+                ui.showLoading(`Sorting ${state.groups.length} groups...`);
+                setTimeout(() => {
+                    state.groups.sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
+                    render();
+                    attachEventListeners();
+                    ui.hideLoading();
+                }, 50);
+            }, 50);
+        }, 50);
     }
 
     function loadState(savedState) {
