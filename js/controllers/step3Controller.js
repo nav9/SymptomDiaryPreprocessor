@@ -11,7 +11,6 @@ const Step3Controller = (function(logger, ui, phraseService) {
     };
 
     let state = {};
-    let colorPicker = null;
     let navCallback = null;
     let categoryModal = null;
     let addGroupModal = null;
@@ -90,8 +89,9 @@ const Step3Controller = (function(logger, ui, phraseService) {
     /** Determines if a hex color is light or dark to decide font color. */
     const isColorLight = (hex) => {
         if (!hex) return false;
-        const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-        return ((r * 0.299) + (g * 0.587) + (b * 0.114)) > 186;
+        const color = hex.substring(1);
+        const r = parseInt(color.substring(0, 2), 16), g = parseInt(color.substring(2, 4), 16), b = parseInt(color.substring(4, 6), 16);
+        return ((r * 0.299) + (g * 0.587) + (b * 0.114)) > 150;
     };
         
     /** Sorts groups alphabetically by their first tag. */
@@ -106,29 +106,23 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
     function renderCategoryControls() {
         const palette = selectors.categoryPalette;
-        const controlsHtml = `
-            <div class="category-palette-wrapper">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="form-check form-switch" title="Assign the tags in any group to the selected category by clicking any tag in the group below">
-                        <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle" ${state.isPaintMode ? 'checked' : ''}>
-                        <label class="form-check-label" for="category-paint-toggle">Activate</label>
-                    </div>
-                    <button class="btn btn-sm palette-arrow" id="palette-arrow-left"><i class="fas fa-chevron-left"></i></button>
-                    <div class="category-palette-scroll">
-                        ${state.categories.map(cat => `
-                            <div class="category-radio">
-                                <input type="radio" name="category-palette" id="cat-radio-${cat.id}" value="${cat.id}" ${state.activeCategoryId === cat.id ? 'checked' : ''}>
-                                <label for="cat-radio-${cat.id}" class="${isColorLight(cat.color) ? 'tag-text-dark' : ''}" style="background-color: ${cat.color}; ${state.activeCategoryId === cat.id ? 'font-weight: bold;' : ''}">
-                                    ${cat.name}
-                                </label>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <button class="btn btn-sm palette-arrow" id="palette-arrow-right"><i class="fas fa-chevron-right"></i></button>
-                    <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
-                </div>
+        const controlsHtml = `<div class="category-palette-wrapper d-flex align-items-center gap-2">
+            <div class="form-check form-switch" title="Assign the tags in any group to the selected category by clicking any tag in the group below">
+                <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle" ${state.isPaintMode ? 'checked' : ''}>
+                <label class="form-check-label" for="category-paint-toggle">Activate</label>
             </div>
-        `;
+            <button class="btn btn-sm palette-arrow" id="palette-arrow-left"><i class="fas fa-chevron-left"></i></button>
+            <div class="category-palette-scroll">
+                ${state.categories.map(cat => `<div class="category-radio">
+                    <input type="radio" name="category-palette" id="cat-radio-${cat.id}" value="${cat.id}" ${state.activeCategoryId === cat.id ? 'checked' : ''}>
+                    <label for="cat-radio-${cat.id}" class="${isColorLight(cat.color) ? 'tag-text-dark' : ''}" style="background-color: ${cat.color}; ${state.activeCategoryId === cat.id ? 'font-weight: bold;' : ''}">
+                        ${cat.name}
+                    </label>
+                </div>`).join('')}
+            </div>
+            <button class="btn btn-sm palette-arrow" id="palette-arrow-right"><i class="fas fa-chevron-right"></i></button>
+            <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
+        </div>`;
         palette.html(controlsHtml);
         updatePaletteArrows();
     }
@@ -136,11 +130,19 @@ const Step3Controller = (function(logger, ui, phraseService) {
     function renderGroups() {
         selectors.groupsContainer.empty();
         
-        const newGroupBtnHtml = `<div id="add-new-group-card" class="group-card add-group-card" title="Create a new group">
-            <i class="fas fa-plus"></i> New Group
-        </div>`;
-        selectors.groupsContainer.append(newGroupBtnHtml);
+        const headerHtml = `
+            <div class="groups-header d-flex gap-3 align-items-center mb-2">
+                <div class="flex-grow-1">
+                    <input type="search" id="tag-search-input" class="form-control form-control-sm" placeholder="Search for tags...">
+                </div>
+                <button id="add-new-group-card" class="btn btn-sm btn-success" title="Create a new group">
+                    <i class="fas fa-plus me-1"></i> New Group
+                </button>
+            </div>
+        `;
+        selectors.groupsContainer.append(headerHtml);
 
+        const groupsArea = $('<div class="groups-area"></div>');
         state.groups.forEach(group => {
             const category = state.categories.find(c => c.id === group.categoryId) || state.categories[0];
             const textClass = isColorLight(category.color) ? 'tag-text-dark' : '';
@@ -148,23 +150,22 @@ const Step3Controller = (function(logger, ui, phraseService) {
                 `<span class="word-tag ${textClass}" draggable="true" data-tag-id="${tag.id}" style="background-color:${category.color};">${tag.text}</span>`
             ).join('');
             
-            const groupHtml = `<div class="group-card ${state.isPaintMode ? 'paint-mode-active' : ''}" data-group-id="${group.id}">
-                ${tagsHtml}
-            </div>`;
-            selectors.groupsContainer.append(groupHtml);
+            const groupHtml = `<div class="group-card ${state.isPaintMode ? 'paint-mode-active' : ''}" data-group-id="${group.id}">${tagsHtml}</div>`;
+            groupsArea.append(groupHtml);
         });
+        selectors.groupsContainer.append(groupsArea);
         setupDragAndDrop();
-    }    
+    }   
 
     function updatePaletteArrows() {
         const scrollArea = $('.category-palette-scroll');
-        if (scrollArea.length === 0) return;
+        if (!scrollArea.length) return;
         const scrollLeft = scrollArea.scrollLeft();
         const scrollWidth = scrollArea[0].scrollWidth;
         const clientWidth = scrollArea[0].clientWidth;
         $('#palette-arrow-left').toggle(scrollLeft > 0);
         $('#palette-arrow-right').toggle(scrollLeft < scrollWidth - clientWidth - 1);
-    }    
+    } 
 
     function setupDragAndDrop() {
         let scrollInterval = null;
@@ -239,34 +240,28 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
     function attachEventListeners() {
         selectors.categoryPalette.off()
-            .on('change', '#category-paint-toggle', function() {
-                state.isPaintMode = $(this).is(':checked');
-                renderGroups();
-            })
-            .on('change', 'input[name="category-palette"]', function() {
-                state.activeCategoryId = $(this).val();
-                renderCategoryControls();
-            })
-            .on('click', '#edit-categories-btn', () => {
-                renderCategoriesModal();
-                categoryModal.show();
-            })
+            .on('change', '#category-paint-toggle', function() { state.isPaintMode = $(this).is(':checked'); renderGroups(); })
+            .on('change', 'input[name="category-palette"]', function() { state.activeCategoryId = $(this).val(); renderCategoryControls(); })
+            .on('click', '#edit-categories-btn', () => { renderCategoriesModal(); categoryModal.show(); })
             .on('click', '#palette-arrow-left', () => { $('.category-palette-scroll').animate({scrollLeft: '-=200px'}, 300); })
             .on('click', '#palette-arrow-right', () => { $('.category-palette-scroll').animate({scrollLeft: '+=200px'}, 300); })
             .on('scroll', '.category-palette-scroll', updatePaletteArrows);
-        $(window).off('resize.step3').on('resize.step3', updatePaletteArrows);            
+        $(window).off('resize.step3').on('resize.step3', updatePaletteArrows);           
 
         selectors.groupsContainer.off()
             .on('click', '#add-new-group-card', () => addGroupModal.show())
-            .on('click', '.group-card:not(.add-group-card)', function() {
+            .on('click', '.group-card', function() {
                 if (state.isPaintMode) {
-                    const groupId = $(this).data('group-id');
-                    const group = state.groups.find(g => g.id === groupId);
-                    if (group) {
-                        group.categoryId = state.activeCategoryId;
-                        renderGroups();
-                    }
+                    const group = state.groups.find(g => g.id === $(this).data('group-id'));
+                    if (group) { group.categoryId = state.activeCategoryId; renderGroups(); }
                 }
+            })
+            .on('input', '#tag-search-input', function() {
+                const query = $(this).val().toLowerCase().trim();
+                $('.groups-area .group-card').each(function() {
+                    const cardText = $(this).text().toLowerCase();
+                    $(this).toggle(cardText.includes(query));
+                });
             });
         
         selectors.groupsWrapper.off().on('keydown', function(e) {
@@ -347,14 +342,12 @@ const Step3Controller = (function(logger, ui, phraseService) {
         modalBody.empty();
         state.categories.forEach(cat => {
             if (!cat.removable) return;
-            modalBody.append(`
-                <li class="list-group-item d-flex align-items-center gap-2">
-                    <button class="btn btn-sm category-color-dot edit-color-btn" data-cat-id="${cat.id}" style="background-color:${cat.color};"></button>
-                    <span class="flex-grow-1">${cat.name}</span>
-                    <button class="btn btn-sm btn-outline-secondary edit-name-btn" data-cat-id="${cat.id}" title="Rename"><i class="fas fa-pencil-alt"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-cat-btn" data-cat-id="${cat.id}" title="Delete"><i class="fas fa-trash"></i></button>
-                </li>
-            `);
+            modalBody.append(`<li class="list-group-item d-flex align-items-center gap-2">
+                <button class="btn btn-sm category-color-dot edit-color-btn" data-cat-id="${cat.id}" style="background-color:${cat.color};"></button>
+                <span class="flex-grow-1">${cat.name}</span>
+                <button class="btn btn-sm btn-outline-secondary edit-name-btn" data-cat-id="${cat.id}" title="Rename"><i class="fas fa-pencil-alt"></i></button>
+                <button class="btn btn-sm btn-outline-danger delete-cat-btn" data-cat-id="${cat.id}" title="Delete"><i class="fas fa-trash"></i></button>
+            </li>`);
         });
     }
 
@@ -367,35 +360,37 @@ const Step3Controller = (function(logger, ui, phraseService) {
                     <div class="modal-body">
                         <ul class="list-group mb-3"></ul>
                         <div class="input-group">
+                            <button id="new-category-color-swatch" class="btn category-color-dot"></button>
                             <input type="text" id="new-category-name" class="form-control" placeholder="New category name">
                             <button id="add-category-btn" class="btn btn-primary">Add</button>
                         </div>
                     </div>
                 </div></div>
             </div>
-            <div class="modal fade" id="add-group-modal" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-                    <div class="modal-header"><h5 class="modal-title">Create New Group</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="new-group-tags" class="form-label">Tags (comma-separated)</label>
-                            <input type="text" id="new-group-tags" class="form-control" placeholder="e.g., headache, pain, dull">
-                        </div>
-                        <div class="mb-3">
-                            <label for="new-group-category" class="form-label">Category</label>
-                            <select id="new-group-category" class="form-select"></select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" id="create-group-confirm" class="btn btn-primary">Create</button>
-                    </div>
-                </div></div>
-            </div>
+            <div class="modal fade" id="add-group-modal" tabindex="-1">...</div>
         `);
-
+        
         categoryModal = new bootstrap.Modal($('#edit-categories-modal'));
-        addGroupModal = new bootstrap.Modal($('#add-group-modal'));        
+        addGroupModal = new bootstrap.Modal($('#add-group-modal'));     
+
+        $('#new-category-color-swatch').css('background-color', newCategoryColor).on('click', function() {
+            new Picker({
+                parent: this, popup: 'right', alpha: false, color: newCategoryColor,
+                onDone: (color) => { newCategoryColor = color.hex; $(this).css('background-color', newCategoryColor); }
+            }).open();
+        });
+
+        $('#add-category-btn').on('click', function() {
+            const name = $('#new-category-name').val().trim();
+            if (name && !state.categories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+                state.categories.push({ id: `cat-${Date.now()}`, name, color: newCategoryColor, removable: true });
+                $('#new-category-name').val('');
+                newCategoryColor = '#cccccc'; // Reset for next time
+                $('#new-category-color-swatch').css('background-color', newCategoryColor);
+                renderCategoriesModal();
+                renderCategoryControls();
+            }
+        });
 
         $('#edit-categories-modal').on('click', '.edit-name-btn', function() {
             const catId = $(this).data('cat-id');
