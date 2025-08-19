@@ -4,14 +4,10 @@ const Step3Controller = (function(logger, ui, phraseService) {
         container: $('#step-3-content'),
         groupsWrapper: $('#groups-container-wrapper'),
         groupsContainer: $('#groups-container'),
-        paintToggle: $('#category-paint-toggle'),
-        categorySelect: $('#category-select'),
-        colorPickerBtn: $('#category-color-picker'),
-        editCategoriesBtn: $('#edit-categories-btn'),
+        categoryPalette: $('#category-palette-bar'),
         uploadBtn: $('#upload-step3-state'),
         downloadBtn: $('#download-step3-state'),
         proceedTopBtn: $('#step3-proceed-top'),
-        proceedBottomBtn: $('#step3-proceed-bottom'),
     };
 
     let state = {};
@@ -19,6 +15,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
     let navCallback = null;
     let categoryModal = null;
     let addGroupModal = null;
+    let newCategoryColor = '#cccccc'; // Default for new categories
 
     function setDefaultState() {
         state = {
@@ -32,7 +29,8 @@ const Step3Controller = (function(logger, ui, phraseService) {
                 { id: 'contaminant', name: 'Contaminant', color: '#dc3545', removable: true },
             ],
             groups: [],
-            isPaintMode: false
+            isPaintMode: false,
+            activeCategoryId: 'none'
         };
     }
 
@@ -89,46 +87,49 @@ const Step3Controller = (function(logger, ui, phraseService) {
         }, 50);
     }
 
+    /** Determines if a hex color is light or dark to decide font color. */
+    const isColorLight = (hex) => {
+        if (!hex) return false;
+        const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+        return ((r * 0.299) + (g * 0.587) + (b * 0.114)) > 186;
+    };
+        
+    /** Sorts groups alphabetically by their first tag. */
+    function sortGroups() {
+        state.groups = state.groups
+            .filter(g => g.tags && g.tags.length > 0)
+            .sort((a, b) => a.tags[0].text.localeCompare(b.tags[0].text));
+    }
+
     function render() {
         renderCategoryControls();
         renderGroups();
     }
 
     function renderCategoryControls() {
-        const select = selectors.categorySelect;
-        const previousVal = select.val();
-        select.empty();
-        state.categories.forEach(cat => {
-            select.append(`<option value="${cat.id}">${cat.name}</option>`);
-        });
-        select.val(previousVal); // Restore previous selection
+        const palette = selectors.categoryPalette;
+        palette.empty();
 
-        const selectedCategory = state.categories.find(c => c.id === select.val()) || state.categories[0];
-        selectors.colorPickerBtn.css('background-color', selectedCategory.color);
-        
-        if (!colorPicker) {
-            colorPicker = new Picker({
-                parent: selectors.colorPickerBtn[0],
-                popup: 'right', alpha: false, editor: false, color: selectedCategory.color,
-            });
-            colorPicker.onChange = function(color) {
-                const catId = select.val();
-                const category = state.categories.find(c => c.id === catId);
-                if (category) {
-                    category.color = color.hex;
-                    this.setColor(color.hex, true);
-                    selectors.colorPickerBtn.css('background-color', color.hex);
-                    renderGroups();
-                }
-            };
-        } else {
-             colorPicker.setColor(selectedCategory.color, true);
-        }
-        
-        selectors.paintToggle.prop('checked', state.isPaintMode);
-        const controlsDisabled = !state.isPaintMode;
-        select.prop('disabled', controlsDisabled);
-        selectors.colorPickerBtn.prop('disabled', controlsDisabled);
+        const controlsHtml = `
+            <div class="d-flex align-items-center gap-3">
+                <div class="form-check form-switch" title="Assign the tags in any group to the selected category by clicking any tag in the group below">
+                    <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle" ${state.isPaintMode ? 'checked' : ''}>
+                    <label class="form-check-label" for="category-paint-toggle">Activate</label>
+                </div>
+                <div class="category-palette-scroll">
+                    ${state.categories.map(cat => `
+                        <div class="category-radio">
+                            <input type="radio" name="category-palette" id="cat-radio-${cat.id}" value="${cat.id}" ${state.activeCategoryId === cat.id ? 'checked' : ''}>
+                            <label for="cat-radio-${cat.id}" class="${isColorLight(cat.color) ? 'tag-text-dark' : ''}" style="background-color: ${cat.color};">
+                                ${cat.name}
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+                <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
+            </div>
+        `;
+        palette.html(controlsHtml);
     }
 
     function renderGroups() {
@@ -141,8 +142,9 @@ const Step3Controller = (function(logger, ui, phraseService) {
 
         state.groups.forEach(group => {
             const category = state.categories.find(c => c.id === group.categoryId) || state.categories[0];
+            const textClass = isColorLight(category.color) ? 'tag-text-dark' : '';
             const tagsHtml = group.tags.map(tag => 
-                `<span class="word-tag" draggable="true" data-tag-id="${tag.id}" style="background-color:${category.color};">${tag.text}</span>`
+                `<span class="word-tag ${textClass}" draggable="true" data-tag-id="${tag.id}" style="background-color:${category.color};">${tag.text}</span>`
             ).join('');
             
             const groupHtml = `<div class="group-card ${state.isPaintMode ? 'paint-mode-active' : ''}" data-group-id="${group.id}">
@@ -220,16 +222,23 @@ const Step3Controller = (function(logger, ui, phraseService) {
             state.groups = state.groups.filter(g => g.id !== sourceGroup.id);
         }
         
+        sortGroups();
         render();
     }
 
     function attachEventListeners() {
-        selectors.paintToggle.off().on('change', function() {
-            state.isPaintMode = $(this).is(':checked');
-            render();
-        });
-
-        selectors.categorySelect.off().on('change', renderCategoryControls);
+        selectors.categoryPalette.off()
+            .on('change', '#category-paint-toggle', function() {
+                state.isPaintMode = $(this).is(':checked');
+                renderGroups();
+            })
+            .on('change', 'input[name="category-palette"]', function() {
+                state.activeCategoryId = $(this).val();
+            })
+            .on('click', '#edit-categories-btn', () => {
+                renderCategoriesModal();
+                categoryModal.show();
+            });
 
         selectors.groupsContainer.off()
             .on('click', '#add-new-group-card', () => addGroupModal.show())
@@ -238,15 +247,25 @@ const Step3Controller = (function(logger, ui, phraseService) {
                     const groupId = $(this).data('group-id');
                     const group = state.groups.find(g => g.id === groupId);
                     if (group) {
-                        group.categoryId = selectors.categorySelect.val();
-                        render();
+                        group.categoryId = state.activeCategoryId;
+                        renderGroups();
                     }
                 }
             });
         
-        selectors.editCategoriesBtn.off().on('click', () => {
-            renderCategoriesModal();
-            categoryModal.show();
+        selectors.groupsWrapper.off().on('keydown', function(e) {
+            const wrapper = $(this)[0];
+            const scrollAmount = e.key === 'PageDown' || e.key === 'PageUp' ? wrapper.clientHeight * 0.9 : 40;
+            let handled = false;
+
+            if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+                wrapper.scrollTop += scrollAmount;
+                handled = true;
+            } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+                wrapper.scrollTop -= scrollAmount;
+                handled = true;
+            }
+            if (handled) e.preventDefault();
         });
 
         selectors.downloadBtn.off().on('click', () => {
@@ -305,19 +324,19 @@ const Step3Controller = (function(logger, ui, phraseService) {
             alert("Proceeding to Step 4 (to be built)!");
         };
         selectors.proceedTopBtn.off().on('click', proceedAction);
-        selectors.proceedBottomBtn.off().on('click', proceedAction);
     }
     
     function renderCategoriesModal() {
         const modalBody = $('#edit-categories-modal .modal-body ul');
         modalBody.empty();
         state.categories.forEach(cat => {
-            if (cat.removable === false) return;
+            if (!cat.removable) return;
             modalBody.append(`
-                <li class="list-group-item d-flex align-items-center">
-                    <span class="category-color-dot me-2" style="background-color:${cat.color}; width:1.5rem; height:1.5rem; border: 1px solid #fff;"></span>
+                <li class="list-group-item d-flex align-items-center gap-2">
+                    <button class="btn btn-sm category-color-dot edit-color-btn" data-cat-id="${cat.id}" style="background-color:${cat.color};"></button>
                     <span class="flex-grow-1">${cat.name}</span>
-                    <button class="btn btn-sm btn-outline-danger" data-cat-id="${cat.id}"><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary edit-name-btn" data-cat-id="${cat.id}" title="Rename"><i class="fas fa-pencil-alt"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-cat-btn" data-cat-id="${cat.id}" title="Delete"><i class="fas fa-trash"></i></button>
                 </li>
             `);
         });
@@ -358,9 +377,34 @@ const Step3Controller = (function(logger, ui, phraseService) {
                 </div></div>
             </div>
         `);
-        categoryModal = new bootstrap.Modal($('#edit-categories-modal'));
-        addGroupModal = new bootstrap.Modal($('#add-group-modal'));
 
+        categoryModal = new bootstrap.Modal($('#edit-categories-modal'));
+        addGroupModal = new bootstrap.Modal($('#add-group-modal'));        
+
+        $('#edit-categories-modal').on('click', '.edit-name-btn', function() {
+            const catId = $(this).data('cat-id');
+            const category = state.categories.find(c => c.id === catId);
+            const newName = prompt('Enter new category name:', category.name);
+            if (newName && newName.trim()) {
+                category.name = newName.trim();
+                renderCategoriesModal();
+                renderCategoryControls();
+            }
+        });
+        $('#edit-categories-modal').on('click', '.edit-color-btn', function() {
+            const catId = $(this).data('cat-id');
+            const category = state.categories.find(c => c.id === catId);
+            if(colorPicker) colorPicker.destroy();
+            colorPicker = new Picker({
+                parent: this, popup: 'right', alpha: false, color: category.color,
+                onDone: (color) => {
+                    category.color = color.hex;
+                    renderCategoriesModal();
+                    render();
+                }
+            });
+            colorPicker.open();
+        });                
         $('#edit-categories-modal').on('click', '#add-category-btn', function() {
             const nameInput = $('#new-category-name');
             const name = nameInput.val().trim();
@@ -396,6 +440,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
             state.groups.unshift(newGroup);
             tagsInput.val('');
             addGroupModal.hide();
+            sortGroups();
             render();
         });
     }

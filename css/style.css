@@ -289,7 +289,10 @@ main {
     padding-bottom: 1.2em;
     text-align: center;     */
 }
-
+/* NEW: High-contrast text class */
+.tag-text-dark {
+    color: #212529 !important; /* Dark text for light backgrounds */
+}
 .alias-icon {
     font-size: 0.7em;
     margin-left: 4px;
@@ -331,12 +334,52 @@ main {
     border-bottom: 1px solid var(--bs-card-border-color);
 }
 
-.category-color-dot {
-    width: 2.2rem;
-    height: 2.2rem;
-    border-radius: 50%;
-    border: 2px solid #fff;
+/* --- NEW: Category Palette Bar Styles --- */
+#category-palette-bar {
+    background-color: var(--bs-card-bg);
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--bs-border-color);
+}
+.category-palette-scroll {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.5rem;
+    /* Hide scrollbar */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+.category-palette-scroll::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+.category-radio {
+    position: relative;
+}
+.category-radio input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.category-radio label {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 1rem;
     cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    border: 2px solid transparent;
+    white-space: nowrap;
+}
+.category-radio input[type="radio"]:checked + label {
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+    border-color: #fff;
+}
+/* --- Tweak Modal Styles --- */
+#edit-categories-modal .category-color-dot {
+    width: 2rem;
+    height: 2rem;
 }
 
 #groups-container-wrapper {
@@ -359,8 +402,8 @@ main {
     background-color: var(--bs-card-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: 0.375rem;
-    padding: 0.5rem;
-    min-height: 50px;
+    padding: 0.3rem;
+    min-height: 40px;
     transition: box-shadow 0.2s, border-color 0.2s;
 }
 
@@ -375,22 +418,24 @@ main {
     align-items: center;
     justify-content: center;
     color: var(--bs-body-color);
+    background-color: #198754; /* Bright green */
+    border-color: #157347;    
     border-style: dashed;
     gap: 0.5rem;
 }
 .add-group-card:hover {
-    background-color: var(--bs-tertiary-bg);
+    background-color: #157347;
     border-color: var(--bs-primary);
 }
 
 .word-tag {
     display: inline-block;
     color: white;
-    padding: 0.25rem 0.6rem;
+    padding: 0.2rem 0.5rem;
     border-radius: 1rem;
-    margin: 0.2rem;
+    margin: 0.1rem;
     cursor: grab;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     transition: opacity 0.2s;
 }
 .word-tag:active {

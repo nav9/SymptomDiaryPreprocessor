@@ -125,18 +125,9 @@
             <!-- ===== STEP 3: group and categorize words ===== -->
             <div id="step-3-content" class="app-step" style="display: none;">
                 <div id="step3-sticky-header" class="sticky-top bg-dark py-2 mb-3">
+                    <!-- This top bar for file/proceed controls remains -->
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <h5 class="mb-0 me-3">Step 3: Group & Categorize Words</h5>
-                        
-                        <!-- Category Controls -->
-                        <div class="form-check form-switch me-2" title="Toggle Category Painting Mode">
-                            <input class="form-check-input" type="checkbox" role="switch" id="category-paint-toggle">
-                            <label class="form-check-label" for="category-paint-toggle">Paint Mode</label>
-                        </div>
-                        <select id="category-select" class="form-select form-select-sm w-auto" disabled></select>
-                        <button id="category-color-picker" class="btn btn-sm category-color-dot" disabled></button>
-                        <button id="edit-categories-btn" class="btn btn-sm btn-outline-secondary" title="Edit Categories"><i class="fas fa-edit"></i></button>
-
                         <div class="ms-auto d-flex gap-2">
                             <input type="file" id="upload-step3-state" class="d-none" accept=".json">
                             <label for="upload-step3-state" class="btn btn-sm btn-outline-secondary" title="Load Step 3 Groups"><i class="fas fa-upload me-2"></i>Load</label>
@@ -144,7 +135,14 @@
                             <button id="step3-proceed-top" class="btn btn-sm btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
                         </div>
                     </div>
+                    <!-- NEW: Placeholder for the category palette bar -->
+                    <div id="category-palette-bar" class="mt-2"></div>
                 </div>
+
+                <!-- NEW: Introductory Paragraph -->
+                <p class="text-body-secondary mb-3">
+                    All unique words from your data are grouped below. Drag and drop tags between groups to re-organize them. Use the 'Activate' mode with the category palette above to quickly assign categories to entire groups with a single click.
+                </p>
 
                 <div id="groups-container-wrapper">
                     <div id="groups-container">
@@ -152,10 +150,8 @@
                     </div>
                 </div>
                 
-                <div class="text-center mt-4">
-                    <button id="step3-proceed-bottom" class="btn btn-lg btn-primary">Proceed to Step 4 <i class="fas fa-arrow-right"></i></button>
-                </div>
-            </div>         
+                <!-- The bottom proceed button is now permanently removed -->
+            </div>      
 
             <!-- ===== NEW STEP 4: ADD DETAILS ===== -->
             <div id="step-4-content" class="app-step" style="display: none;">
