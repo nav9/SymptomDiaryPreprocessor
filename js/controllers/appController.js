@@ -44,9 +44,11 @@ const AppController = (function(step1, step2, step3, step4) {
                 step3.init(navigateToStep, dataPayload);
                 break;   
             case 4:
-                step4.init(navigateToStep); // New Step 4
+                step4.init(navigateToStep, dataPayload);
                 break;                              
-            // Future steps will be added here
+            case 5: // ADDED
+                step5.init(navigateToStep, dataPayload);
+                break;
         }
     }
 

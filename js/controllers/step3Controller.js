@@ -327,7 +327,7 @@ const Step3Controller = (function(logger, ui, phraseService) {
         const proceedAction = function() {
             if (!window.appState.step3) window.appState.step3 = {};
             window.appState.step3.finalData = state;
-            alert("Proceeding to Step 4 (to be built)!");
+            if (navCallback) navCallback(4);
         };
         selectors.proceedTopBtn.off().on('click', proceedAction);
     }

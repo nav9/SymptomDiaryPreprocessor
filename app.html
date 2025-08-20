@@ -169,9 +169,11 @@
                     </div>
                </div>
 
-               <p class="text-body-secondary text-center mb-3">
+               <p class="text-body-secondary mb-3">
                 Enrich your tags with details. This information will power advanced searching and filtering in the visualization step. Start typing in a cell to see suggestions.
-            </p>               
+                </p>   
+            
+            
 
                <div class="table-responsive">
                    <table class="table table-bordered table-dark table-hover" id="step4-details-table">
@@ -190,6 +192,10 @@
                </div>
            </div>
 
+           <!-- ===== NEW STEP 5: VISUALIZE ===== -->
+            <div id="step-5-content" class="app-step" style="display: none;">
+                <!-- This will be populated by step5Controller.js -->
+            </div>
            
         </div>
     </main>
@@ -243,6 +249,7 @@
     <script src="js/controllers/step2Controller.js"></script>
     <script src="js/controllers/step3Controller.js"></script>
     <script src="js/controllers/step4Controller.js"></script>
+    <script src="js/controllers/step5Controller.js"></script>
     <script src="js/controllers/appController.js"></script>
 </body>
 
