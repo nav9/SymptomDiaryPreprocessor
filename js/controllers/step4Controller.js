@@ -3,231 +3,351 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
     const selectors = {
         container: $('#step-4-content'),
         stickyHeader: $('#step4-sticky-header'),
-        tableContainer: $('#step4-table-container'),
+        tableHeader: $('#step4-table-header'),
+        tableBody: $('#step4-table-body'),
+        addColumnBtn: $('#step4-add-column-btn'),
+        saveBtn: $('#step4-save-btn'),
+        loadInput: $('#step4-load-input'),
+        proceedTopBtn: $('#step4-proceed-top'),
         proceedBottomBtn: $('#step4-proceed-bottom'),
+        step2DataDisplay: $('#step4-step2-data-display'),
+        step3DataDisplay: $('#step4-step3-data-display'),
     };
 
     let state = {};
     let navCallback = null;
+    let searchResults = [];
+    let currentSearchIndex = -1;
+
+    const DEFAULT_HEADERS = ['Tags', 'Composition', 'Nutrition', 'Contaminants/Side-Effects', 'Duration'];
+    // Defines the sorting order for categories in the table
+    const CATEGORY_SORT_ORDER = {
+        'food': 1,
+        'contaminant': 2,
+        'medication': 3,
+        'symptom': 4,
+        'action': 10,
+        'anatomy': 11,
+        'none': 99
+    };
+
 
     function setDefaultState() {
         state = {
-            headers: ["Composition", "Nutrition", "Contaminants/Side Effects", "Effective Duration"],
-            tableData: [] // Holds { group, data: {header: value} }
+            headers: [...DEFAULT_HEADERS],
+            rows: []
         };
     }
 
     function init(navigationCallback, payload) {
         logger.info("Initializing Step 4: Add Details.");
         navCallback = navigationCallback;
+        setDefaultState();
 
         if (payload) {
             loadState(payload);
         } else {
-            const step3Data = window.appState?.step3?.finalData;
-            if (!step3Data || !step3Data.groups || step3Data.groups.length === 0) {
-                setDefaultState();
-                render();
+            const dataFromStep2 = window.appState?.step2?.finalData;
+            const dataFromStep3 = window.appState?.step3?.finalData;
+
+            if (!dataFromStep3 || dataFromStep3.groups.length === 0) {
+                selectors.tableBody.html('<tr><td colspan="5" class="text-center alert alert-warning">No data to process. Please complete Step 3 or load a file.</td></tr>');
                 attachEventListeners();
                 return;
             }
-            processNewData(step3Data);
+            processNewData(dataFromStep2, dataFromStep3);
         }
     }
 
-    function processNewData(step3Data) {
-        ui.showLoading("Sorting and enriching categorized data...");
+    function loadState(savedState) {
+        ui.showLoading("Loading saved state for Step 4...");
         setTimeout(() => {
-            setDefaultState();
-
-            const categoryOrder = ['food', 'contaminant', 'medication'];
-            const sortedGroups = [...step3Data.groups].sort((a, b) => {
-                const indexA = categoryOrder.indexOf(a.categoryId);
-                const indexB = categoryOrder.indexOf(b.categoryId);
-                const priorityA = a.categoryId === 'none' ? Infinity : (indexA === -1 ? categoryOrder.length : indexA);
-                const priorityB = b.categoryId === 'none' ? Infinity : (indexB === -1 ? categoryOrder.length : indexB);
-
-                if (priorityA !== priorityB) return priorityA - priorityB;
-                if (a.categoryId !== b.categoryId) return a.categoryId.localeCompare(b.categoryId);
-                return a.tags[0].text.localeCompare(b.tags[0].text);
-            });
-
-            state.tableData = sortedGroups.map(group => {
-                const rowData = { group, data: {} };
-                state.headers.forEach(h => rowData.data[h] = new Set());
-
-                group.tags.forEach(tag => {
-                    const info = knowledgeBase.getInfo(tag.text);
-                    if (info) {
-                        state.headers.forEach(h => {
-                            // CORRECTED: Find key case-insensitively without removing spaces.
-                            const key = Object.keys(info).find(k => k.toLowerCase() === h.toLowerCase());
-                            if (key && info[key]) {
-                                rowData.data[h].add(info[key]);
-                            }
-                        });
-                    }
-                });
-
-                Object.keys(rowData.data).forEach(key => {
-                    rowData.data[key] = Array.from(rowData.data[key]).join('; ');
-                });
-                return rowData;
-            });
-            
-            render();
+            state = savedState;
+            const dataFromStep2 = window.appState?.step2?.finalData;
+            const dataFromStep3 = window.appState?.step3?.finalData;
+            render(dataFromStep2, dataFromStep3);
             attachEventListeners();
             ui.hideLoading();
         }, 50);
     }
     
-    function loadState(savedState) {
-        state = savedState;
-        logger.info(`Loaded ${state.tableData.length} rows for Step 4.`);
-        render();
-        attachEventListeners();
+    function processNewData(dataFromStep2, dataFromStep3) {
+        ui.showLoading("Processing data from previous steps...");
+        setTimeout(() => {
+            const groups = dataFromStep3.groups;
+            
+            state.rows = groups.map(group => {
+                const newRow = {
+                    groupId: group.id,
+                    categoryId: group.categoryId,
+                    tags: group.tags,
+                    displayTags: group.tags.map(t => t.text).join(', '),
+                    details: {}
+                };
+                
+                // Pre-fill details from Knowledge Base
+                const mergedDetails = {};
+                group.tags.forEach(tag => {
+                    const info = knowledgeBase.getInfo(tag.text);
+                    if (info) {
+                        for (const [key, value] of Object.entries(info)) {
+                            if (!mergedDetails[key]) mergedDetails[key] = new Set();
+                            // Add details, splitting by semicolon to handle multiple entries
+                            value.split(';').forEach(v => mergedDetails[key].add(v.trim()));
+                        }
+                    }
+                });
+
+                // Convert sets back to strings for display
+                for (const key in mergedDetails) {
+                    newRow.details[key] = Array.from(mergedDetails[key]).join('; ');
+                }
+
+                return newRow;
+            });
+            
+            sortRows();
+            render(dataFromStep2, dataFromStep3);
+            attachEventListeners();
+            ui.hideLoading();
+        }, 50);
     }
 
-    const isColorLight = (hex) => {
-        if (!hex) return false;
-        const color = hex.substring(1);
-        const r = parseInt(color.substring(0, 2), 16), g = parseInt(color.substring(2, 4), 16), b = parseInt(color.substring(4, 6), 16);
-        return ((r * 0.299) + (g * 0.587) + (b * 0.114)) > 150;
-    };
+    function sortRows() {
+        state.rows.sort((a, b) => {
+            const orderA = CATEGORY_SORT_ORDER[a.categoryId] || 50;
+            const orderB = CATEGORY_SORT_ORDER[b.categoryId] || 50;
+            if (orderA !== orderB) return orderA - orderB;
+            // If categories are the same, sort alphabetically by tags
+            return a.displayTags.localeCompare(b.displayTags);
+        });
+    }
 
-    function render() {
+    function render(dataFromStep2, dataFromStep3) {
+        renderRawDataAccordions(dataFromStep2, dataFromStep3);
         renderHeader();
-        renderTable();
+        renderBody();
+    }
+
+    function renderRawDataAccordions(step2Data, step3Data) {
+        selectors.step2DataDisplay.text(step2Data ? JSON.stringify(step2Data, null, 2) : 'Step 2 data is not available.');
+        selectors.step3DataDisplay.text(step3Data ? JSON.stringify(step3Data, null, 2) : 'Step 3 data is not available.');
     }
 
     function renderHeader() {
-        const headerHtml = `
-            <div class="d-flex align-items-center gap-2">
-                <h5 class="mb-0 me-3">Step 4: Add Details</h5>
-                <input type="search" id="step4-search-input" class="form-control form-control-sm" style="max-width: 200px;" placeholder="Search tags...">
-                <div class="ms-auto d-flex gap-2 flex-nowrap">
-                    <input type="file" id="step4-load-input" class="d-none" accept=".json">
-                    <label for="step4-load-input" class="btn btn-sm btn-outline-secondary" title="Load Details Data"><i class="fas fa-upload me-2"></i>Load</label>
-                    <button id="step4-save-btn" class="btn btn-sm btn-outline-secondary" title="Save Details Data"><i class="fas fa-download me-2"></i>Save</button>
-                    <button id="step4-add-column-btn" class="btn btn-sm btn-success"><i class="fas fa-plus me-2"></i>Add Column</button>
-                    <button id="step4-proceed-top" class="btn btn-sm btn-primary">Proceed to Step 5 <i class="fas fa-arrow-right"></i></button>
+        const searchControls = `
+             <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <input type="search" id="step4-search-input" class="form-control" placeholder="Search table...">
+                    <button class="btn btn-outline-secondary" id="step4-search-prev" disabled><i class="fas fa-chevron-up"></i></button>
+                    <button class="btn btn-outline-secondary" id="step4-search-next" disabled><i class="fas fa-chevron-down"></i></button>
                 </div>
-            </div>`;
-        selectors.stickyHeader.html(headerHtml);
+            </div>
+            <div class="col-md-8 text-end" id="step4-search-status"></div>
+        `;
+        // Inject search controls into the sticky header
+        selectors.stickyHeader.find('.d-flex.align-items-center').after(`<div class="row mt-2 align-items-center">${searchControls}</div>`);
+
+
+        let headerHtml = '<tr>';
+        state.headers.forEach(header => {
+            headerHtml += `<th scope="col">${header}`;
+            // Add delete button for custom columns
+            if (!DEFAULT_HEADERS.includes(header)) {
+                 headerHtml += ` <i class="fas fa-times-circle text-danger delete-column-btn" style="cursor:pointer;" title="Delete '${header}' Column" data-header="${header}"></i>`;
+            }
+            headerHtml += '</th>';
+        });
+        headerHtml += '</tr>';
+        selectors.tableHeader.html(headerHtml);
     }
 
-    function renderTable() {
-        const container = selectors.tableContainer.find('table');
-        if (!state.tableData || state.tableData.length === 0) {
-            selectors.tableContainer.html('<div class="alert alert-info">No categorized groups from Step 3 to detail. You can add categories in Step 3 or proceed directly to Step 5.</div>');
-            return;
-        }
+    function renderBody() {
+        let bodyHtml = '';
+        const dataFromStep3 = window.appState?.step3?.finalData;
+        const categories = dataFromStep3 ? new Map(dataFromStep3.categories.map(c => [c.id, c])) : new Map();
 
-        const tableHeaderHtml = `<thead><tr>
-            <th style="width: 25%;">Tags</th>
-            ${state.headers.map(h => `<th>${h}</th>`).join('')}
-        </tr></thead>`;
-        
-        const tableBodyHtml = `<tbody>
-            ${state.tableData.map((row, index) => {
-                const category = window.appState.step3.finalData.categories.find(c => c.id === row.group.categoryId);
-                const textClass = category && isColorLight(category.color) ? 'tag-text-dark' : '';
-                return `
-                    <tr data-row-index="${index}">
-                        <td class="tags-cell">${row.group.tags.map(tag => `<span class="word-tag ${textClass}" style="background-color:${category?.color || '#6c757d'};">${tag.text}</span>`).join(' ')}</td>
-                        ${state.headers.map(h => `<td><textarea class="form-control" data-field="${h}" rows="1">${row.data[h] || ''}</textarea></td>`).join('')}
-                    </tr>
-                `;
-            }).join('')}
-        </tbody>`;
-
-        if (container.length > 0) {
-            container.html(tableHeaderHtml + tableBodyHtml);
-        } else {
-            selectors.tableContainer.html(`<table class="table table-bordered table-dark table-sm" id="step4-details-table">${tableHeaderHtml}${tableBodyHtml}</table>`);
-        }
+        state.rows.forEach((row, rowIndex) => {
+            bodyHtml += `<tr data-row-index="${rowIndex}">`;
+            state.headers.forEach(header => {
+                if (header === 'Tags') {
+                    const category = categories.get(row.categoryId) || { color: '#6c757d', name: 'Unknown' };
+                    const tagsHtml = row.tags.map(tag => 
+                        `<span class="word-tag" style="background-color:${category.color};">${tag.text}</span>`
+                    ).join(' ');
+                    bodyHtml += `<td class="text-nowrap">${tagsHtml}</td>`;
+                } else {
+                    const value = row.details[header] || '';
+                    bodyHtml += `<td><textarea class="form-control" data-header="${header}">${value}</textarea></td>`;
+                }
+            });
+            bodyHtml += `</tr>`;
+        });
+        selectors.tableBody.html(bodyHtml);
     }
 
     function attachEventListeners() {
-        const proceedAction = () => {
-            if (!window.appState.step4) window.appState.step4 = {};
-            window.appState.step4.finalData = state;
-            logger.info("Proceeding to Step 5 with all data preserved.");
-            if (navCallback) navCallback(5);
+        selectors.container.off(); // Clear all previous delegated listeners for this step
+        
+        selectors.addColumnBtn.on('click', function() {
+            const newColumnName = prompt("Enter the name for the new column:");
+            if (newColumnName && !state.headers.includes(newColumnName)) {
+                state.headers.push(newColumnName);
+                state.rows.forEach(row => {
+                    row.details[newColumnName] = '';
+                });
+                renderHeader();
+                renderBody();
+            } else if (newColumnName) {
+                alert("A column with this name already exists.");
+            }
+        });
+
+        selectors.tableHeader.on('click', '.delete-column-btn', function() {
+            const headerToDelete = $(this).data('header');
+            if (confirm(`Are you sure you want to delete the "${headerToDelete}" column?`)) {
+                state.headers = state.headers.filter(h => h !== headerToDelete);
+                state.rows.forEach(row => {
+                    delete row.details[headerToDelete];
+                });
+                renderHeader();
+                renderBody();
+            }
+        });
+        
+        selectors.tableBody.on('input', 'textarea', function() {
+            const rowIndex = $(this).closest('tr').data('row-index');
+            const header = $(this).data('header');
+            state.rows[rowIndex].details[header] = $(this).val();
+            window.appState.isDirty = true;
+        });
+        
+        selectors.saveBtn.on('click', function() {
+            const stateToSave = { step: 4, data: state };
+            const dataStr = JSON.stringify(stateToSave, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Step4_details_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            logger.info("Step 4 data saved.");
+        });
+
+        selectors.loadInput.on('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const loadedData = JSON.parse(e.target.result);
+                    if (loadedData.step !== 4 || !loadedData.data) throw new Error("Invalid Step 4 file format.");
+                    
+                    const performLoad = (mode) => {
+                        if (mode === 'replace') {
+                            state = loadedData.data;
+                        } else if (mode === 'merge') {
+                            // Merge headers
+                            loadedData.data.headers.forEach(h => {
+                                if (!state.headers.includes(h)) state.headers.push(h);
+                            });
+                            // Merge rows by groupId
+                            const existingRows = new Map(state.rows.map(r => [r.groupId, r]));
+                            loadedData.data.rows.forEach(loadedRow => {
+                                if (existingRows.has(loadedRow.groupId)) {
+                                    const existingRow = existingRows.get(loadedRow.groupId);
+                                    Object.assign(existingRow.details, loadedRow.details);
+                                } else {
+                                    state.rows.push(loadedRow);
+                                }
+                            });
+                        }
+                        render(window.appState?.step2?.finalData, window.appState?.step3?.finalData);
+                    };
+                    
+                    if (state.rows.length > 0) {
+                        ui.showMergeConflictModal(choice => performLoad(choice));
+                    } else {
+                        performLoad('replace');
+                    }
+                    
+                } catch (err) {
+                    alert("Error reading or parsing the Step 4 file.");
+                    logger.error("Failed to load Step 4 file.", err);
+                }
+            };
+            reader.readAsText(file);
+            $(this).val('');
+        });
+
+        const proceedAction = function() {
+            if (confirm("Are you sure you want to finalize details and proceed to visualization?")) {
+                if (!window.appState.step4) window.appState.step4 = {};
+                window.appState.step4.finalData = state;
+                logger.info("Step 4 complete. Passing all data to global state for Step 5.");
+                if (navCallback) navCallback(5);
+            }
         };
 
-        selectors.stickyHeader.off()
-            .on('click', '#step4-proceed-top', proceedAction)
-            .on('click', '#step4-save-btn', () => {
-                const dataStr = JSON.stringify({ step: 4, data: state }, null, 2);
-                const blob = new Blob([dataStr], { type: 'application/json' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `Step4_details_${new Date().toISOString().slice(0,10)}.json`;
-                a.click();
-                URL.revokeObjectURL(a.href);
-            })
-            .on('change', '#step4-load-input', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const loaded = JSON.parse(event.target.result);
-                        if (loaded.step !== 4 || !loaded.data) throw new Error("Invalid format");
-                        const performLoad = (mode) => {
-                            if (mode === 'replace') {
-                                loadState(loaded.data);
-                            } else if (mode === 'merge') {
-                                const newHeaders = new Set([...state.headers, ...loaded.data.headers]);
-                                state.headers = Array.from(newHeaders);
-                                const existingRowMap = new Map(state.tableData.map(row => [row.group.id, row]));
-                                loaded.data.tableData.forEach(newRow => {
-                                    if (!existingRowMap.has(newRow.group.id)) {
-                                        state.tableData.push(newRow);
-                                    }
-                                });
-                                render();
-                            }
-                        };
-                        if (state.tableData.length > 0) {
-                            ui.showMergeConflictModal(choice => performLoad(choice));
-                        } else {
-                            performLoad('replace');
-                        }
-                    } catch(err) { alert("Error loading Step 4 file."); logger.error(err); }
-                };
-                reader.readAsText(file);
-                $(e.target).val('');
-            })
-            .on('input', '#step4-search-input', function() {
-                const query = $(this).val().toLowerCase().trim();
-                $('#step4-details-table tbody tr').each(function() {
-                    const row = $(this);
-                    const tagsText = row.find('.tags-cell').text().toLowerCase();
-                    row.toggle(tagsText.includes(query));
-                });
-            })
-            .on('click', '#step4-add-column-btn', () => {
-                const newHeader = prompt("Enter new column name:");
-                if (newHeader && newHeader.trim() && !state.headers.includes(newHeader)) {
-                    state.headers.push(newHeader.trim());
-                    state.tableData.forEach(row => { row.data[newHeader] = ''; });
-                    renderTable();
+        selectors.proceedTopBtn.on('click', proceedAction);
+        selectors.proceedBottomBtn.on('click', proceedAction);
+        
+        // --- Search Listeners ---
+        selectors.container.on('input', '#step4-search-input', function() {
+            const query = $(this).val().toLowerCase().trim();
+            // Remove previous highlights
+            selectors.tableBody.find('tr').removeClass('table-primary');
+            
+            if (query === '') {
+                searchResults = [];
+                currentSearchIndex = -1;
+                $('#step4-search-prev, #step4-search-next').prop('disabled', true);
+                $('#step4-search-status').text('');
+                return;
+            }
+            
+            searchResults = [];
+            selectors.tableBody.find('tr').each(function() {
+                const rowText = $(this).text().toLowerCase();
+                if (rowText.includes(query)) {
+                    searchResults.push(this);
                 }
             });
 
-            selectors.proceedBottomBtn.off().on('click', proceedAction);
+            if (searchResults.length > 0) {
+                currentSearchIndex = 0;
+                highlightSearchResult();
+                $('#step4-search-prev, #step4-search-next').prop('disabled', searchResults.length <= 1);
+            } else {
+                currentSearchIndex = -1;
+                 $('#step4-search-prev, #step4-search-next').prop('disabled', true);
+                 $('#step4-search-status').text('No matches found.');
+            }
+        });
         
-            selectors.tableContainer.off().on('input', 'textarea', function() {
-                const rowIndex = $(this).closest('tr').data('row-index');
-                const field = $(this).data('field');
-                if (state.tableData[rowIndex]) {
-                    state.tableData[rowIndex].data[field] = $(this).val();
-                }
-            });
-        }
+        selectors.container.on('click', '#step4-search-next', function() {
+            if (searchResults.length === 0) return;
+            currentSearchIndex = (currentSearchIndex + 1) % searchResults.length;
+            highlightSearchResult();
+        });
+
+        selectors.container.on('click', '#step4-search-prev', function() {
+            if (searchResults.length === 0) return;
+            currentSearchIndex = (currentSearchIndex - 1 + searchResults.length) % searchResults.length;
+            highlightSearchResult();
+        });
+
+    }
     
-        return { init };
+    function highlightSearchResult() {
+        selectors.tableBody.find('tr').removeClass('table-primary');
+        const currentResult = $(searchResults[currentSearchIndex]);
+        currentResult.addClass('table-primary');
+        currentResult[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        $('#step4-search-status').text(`Showing ${currentSearchIndex + 1} of ${searchResults.length}`);
+    }
+
+    return { init };
 
 })(logger, uiService, KnowledgeBaseService);

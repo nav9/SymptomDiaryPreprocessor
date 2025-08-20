@@ -314,7 +314,6 @@ const Step1Controller = (function(logger, recognizer, ui) {
         });
         
         header.on('click', '#save-btn', function() {
-            alert("entered");
             if (Object.keys(yearlyData).length === 0) return;
             
             if (!confirm(`This will attempt to download ${Object.keys(yearlyData).length} file(s). Continue?`)) {

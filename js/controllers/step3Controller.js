@@ -1,3 +1,5 @@
+//TODO: Find and remove the vanilla color picker code
+
 const Step3Controller = (function(logger, ui, phraseService) {
 
     const selectors = {

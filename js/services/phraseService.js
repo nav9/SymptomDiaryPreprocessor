@@ -75,18 +75,7 @@ const PhraseService = (function(logger) {
         new Set(['groin']),new Set(['gumline']),new Set(['hair', 'hairs', 'scalp']),new Set(['heel']),new Set(['humerus']),new Set(['intestine', 'intestines']),
         new Set(['knuckle', 'knuckles']),new Set(['lobe']),new Set(['metatarsal']),new Set(['nerve', 'nerves']),new Set(['nipple']),new Set(['pelvic', 'pubis', 'pube']),
         new Set(['premolar', 'premolars']),new Set(['rib', 'ribs', 'ribcage']),new Set(['shoulder', 'shoulderblade', 'shoulders', 'trapezius']),new Set(['tendon']),] },
-        { categoryId: 'medication', sets: [ new Set(['amoxicillin', 'alimox', 'amox', 'novamox']), new Set(['antibiotic']), new Set(['painkiller', 'painkillers']), 
-        new Set(['aata', 'wheat', 'maida', 'besan', 'rava', 'bajra', 'jowar', 'millets', 'ragi', 'rajgira']),new Set(['cheera', 'spinach']),new Set(['chiroti']),
-        new Set(['chiwda']),new Set(['chole']),new Set(['clove', 'elaichi', 'cardamom', 'jeera', 'coriander', 'fenugreek', 'ginger', 'mustard', 'pepper', 'turmeric']),
-        new Set(['colocasia', 'yam']),new Set(['chow']),new Set(['chutney']),new Set(['bhaji']),new Set(['bitter puli', 'karela']),new Set(['bok']),new Set(['broccoli']),
-        new Set(['carambola', 'starfruit']),new Set(['cowpea']),new Set(['cucumber', 'vellarika']),new Set(['curd']),new Set(['custard']),new Set(['dates']),
-        new Set(['fig']),new Set(['garlic']),new Set(['ghee']),new Set(['gulab', 'jamun']),new Set(['halwa']),new Set(['jam']),new Set(['khichidi', 'pongal', 'porridge']),
-        new Set(['kodubale', 'murukku', 'muruku', 'kuzhalappam']),new Set(['kulith']),new Set(['lapsi']),new Set(['lettuce']),new Set(['marinated']),
-        new Set(['melon', 'watermelon']),new Set(['mint']),new Set(['moilee']),new Set(['moringa']),new Set(['noodles']),new Set(['oregano']),new Set(['paalappam']),
-        new Set(['papaya']),new Set(['paysam']),new Set(['pickle']),new Set(['pineapple']),new Set(['pindi']),new Set(['poori']),new Set(['pulses', 'kadala']),
-        new Set(['pumpkin']),new Set(['raisins']),new Set(['roasted']),new Set(['sambar']),new Set(['sameiya']),new Set(['sapota']),new Set(['sauce']),
-        new Set(['sesame']),new Set(['soan']),new Set(['soya', 'soyabeans']),new Set(['stew']),new Set(['sugar']),new Set(['tamarind']),new Set(['tutti']),
-        new Set(['uddin']),new Set(['vanilla']), ] },
+        { categoryId: 'medication', sets: [ new Set(['amoxicillin', 'alimox', 'amox', 'novamox']), new Set(['antibiotic']), new Set(['painkiller', 'painkillers']), ] },
         { categoryId: 'contaminant', sets: [ new Set(['pesticide', 'pesticides']), new Set(['poison', 'poisoning']), new Set(['spoilage', 'spoiled', 'spoiling', 'spoilt']), 
         new Set(['bacteria']),new Set(['chemical']),new Set(['dirt']),new Set(['dust']) ] }
     ];
@@ -110,7 +99,6 @@ const PhraseService = (function(logger) {
         HEURISTICS_DATA.forEach(categoryData => {
             categoryData.sets.forEach(wordSet => {
                 wordSet.forEach(word => {
-                    // CORRECTED: The variable here is `wordSet`, not `groupSet`.
                     HEURISTICS_LOOKUP.set(word, { categoryId: categoryData.categoryId, groupSet: wordSet });
                 });
             });

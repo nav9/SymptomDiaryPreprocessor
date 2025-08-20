@@ -77,27 +77,6 @@ const ValidatorService = (function(dateParser, lineRecognizerService) {
         return (ascCount / (dates.length - 1)) >= 0.5;
     }
 
-    // function validateDateOrder(dateGroups, isAscending) {
-    //     const sortedDates = Object.values(dateGroups)
-    //         .map(g => g.dateObj)
-    //         .filter(Boolean)
-    //         .sort((a, b) => a.getTime() - b.getTime());
-        
-    //     if (!isAscending) sortedDates.reverse();
-
-    //     Object.values(dateGroups).forEach((group, index) => {
-    //         // Check for invalid dates (e.g., "30 feb")
-    //         if (!group.dateObj) {
-    //             group.entries.forEach(entry => entry.error = "Invalid date format or value.");
-    //             return; // Skip order check for invalid dates
-    //         }
-    //         // Check for out-of-order dates
-    //         if (group.dateObj.getTime() !== sortedDates[index]?.getTime()) {
-    //             group.entries.forEach(entry => entry.error = `Date is out of order (expected ${isAscending ? 'ascending' : 'descending'}).`);
-    //         }
-    //     });
-    // }
-
     function validateDateOrderAndValidity(dateGroups, isAscending, year) {
         // Handle groups without a date first (e.g., initial comments).
         if (dateGroups.has("")) {

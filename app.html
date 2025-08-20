@@ -173,7 +173,33 @@
                 Enrich your tags with details. This information will power advanced searching and filtering in the visualization step. Start typing in a cell to see suggestions.
                 </p>   
             
-            
+    <!-- ADDED: Accordion for displaying raw data from previous steps -->
+    <div class="accordion mb-3" id="step4-raw-data-accordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingStep2Data">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep2Data" aria-expanded="false" aria-controls="collapseStep2Data">
+                    View Raw Data from Step 2 (Cleaned Entries)
+                </button>
+            </h2>
+            <div id="collapseStep2Data" class="accordion-collapse collapse" aria-labelledby="headingStep2Data" data-bs-parent="#step4-raw-data-accordion">
+                <div class="accordion-body">
+                    <pre id="step4-step2-data-display" class="form-control" style="max-height: 300px;"></pre>
+                </div>
+            </div>
+        </div>
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingStep3Data">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStep3Data" aria-expanded="false" aria-controls="collapseStep3Data">
+                    View Raw Data from Step 3 (Groups & Categories)
+                </button>
+            </h2>
+            <div id="collapseStep3Data" class="accordion-collapse collapse" aria-labelledby="headingStep3Data" data-bs-parent="#step4-raw-data-accordion">
+                <div class="accordion-body">
+                    <pre id="step4-step3-data-display" class="form-control" style="max-height: 300px;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>            
 
                <div class="table-responsive">
                    <table class="table table-bordered table-dark table-hover" id="step4-details-table">
