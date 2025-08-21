@@ -98,6 +98,24 @@
                                     <!-- The proceed button will be injected here by JS -->
                                 </div>
                             </div>
+
+                            <!-- ===== NEW: SPELL CHECK SECTION ===== -->
+                            <div id="spell-check-section" class="mt-4 pt-4 border-top" style="display: none;">
+                                <h5 class="card-title">Spelling Check</h5>
+                                <p class="card-text text-body-secondary">Check for and correct potential spelling mistakes in your data.</p>
+                                <div class="d-flex gap-2 mb-3">
+                                    <button id="spell-check-btn" class="btn btn-info" disabled><i class="fas fa-spell-check me-2"></i>Do a Spelling Check</button>
+                                    <div class="ms-auto d-flex gap-2">
+                                        <input type="file" id="upload-ignored-words" class="d-none" accept=".json">
+                                        <label for="upload-ignored-words" class="btn btn-sm btn-outline-secondary" title="Load 'Not a Mistake' List"><i class="fas fa-upload me-2"></i>Load Ignore List</label>
+                                        <button id="download-ignored-words" class="btn btn-sm btn-outline-secondary" title="Save 'Not a Mistake' List"><i class="fas fa-download me-2"></i>Save Ignore List</button>
+                                    </div>
+                                </div>
+                                <div id="spell-check-results" class="accordion">
+                                    <!-- Spell check results will be injected here -->
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>

@@ -216,6 +216,15 @@ main {
     border-color: #565e64;
 }
 
+/* --- NEW: Spell Check Highlight --- */
+.misspelled-highlight {
+    background-color: #a31a28;
+    color: white;
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
 
 /* --- ADD NEW STEP 3 STYLES --- */
 #step3-sticky-header {

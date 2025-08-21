@@ -3263,6 +3263,15 @@ const KnowledgeBaseService = (function() {
         return Array.from(keywords);
     }    
 
-    return { getInfo, getAllKeywords };
+    /**
+     * Checks if a word is present in the knowledge base.
+     * @param {string} word - The word to check.
+     * @returns {boolean} True if the word is a known key.
+     */
+    function isKnownWord(word) {
+        return knowledgeBase.hasOwnProperty(word.toLowerCase());
+    }    
+
+    return { getInfo, isKnownWord, getAllKeywords };
 
 })();

@@ -1,4 +1,4 @@
-const Step1Controller = (function(logger, recognizer, ui) {
+const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
 
     const selectors = {
         initialLoadSection: $('#initial-load-section'),
@@ -8,13 +8,22 @@ const Step1Controller = (function(logger, recognizer, ui) {
         stickyHeader: $('#step1-sticky-header'),
         dataContainer: $('#data-container'),
         topProceedContainer: $('#top-proceed-container'), 
-        bottomProceedContainer: $('#bottom-proceed-container')
+        bottomProceedContainer: $('#bottom-proceed-container'),
+        spellCheckSection: $('#spell-check-section'),
+        spellCheckBtn: $('#spell-check-btn'),
+        spellCheckResults: $('#spell-check-results'),
+        uploadIgnoredBtn: $('#upload-ignored-words'),
+        downloadIgnoredBtn: $('#download-ignored-words')
     };
 
 
     // Data structure: { "2024": [ {id, rawText, type, reason}, ... ], "2023": [ ... ] }
     const yearlyData = {};
     let currentYear = null;
+    
+    // --- NEW: Spell Check State ---
+    let misspelledWordsData = new Map();
+    let ignoredWords = new Set();
 
     function init(navCallback) {
         logger.info("Initializing Definitive Step 1 Controller.");
@@ -71,6 +80,7 @@ const Step1Controller = (function(logger, recognizer, ui) {
         if (Object.keys(yearlyData).length > 0) {
             selectors.initialLoadSection.hide();
             selectors.editorSection.show();
+            selectors.spellCheckSection.show(); // Show the spell check section
             currentYear = Object.keys(yearlyData).sort()[0];
             validateAndRender();
         }
@@ -81,6 +91,10 @@ const Step1Controller = (function(logger, recognizer, ui) {
         let lastDateIsValid = false;
         let currentYearErrorCount = 0;
         let totalErrorCount = 0;
+        const hasData = Object.keys(yearlyData).length > 0;
+
+        // Enable spell check button if there is data
+        selectors.spellCheckBtn.prop('disabled', !hasData);
 
         // First, calculate total errors across all years
         Object.values(yearlyData).forEach(yearLines => {
@@ -200,6 +214,116 @@ const Step1Controller = (function(logger, recognizer, ui) {
             selectors.bottomProceedContainer.empty();
         }
     }
+
+    // --- NEW: Spell Check Functions ---
+    async function runSpellCheck() {
+        selectors.spellCheckBtn.prop('disabled', true);
+        misspelledWordsData.clear();
+        
+        const totalLines = Object.values(yearlyData).reduce((acc, lines) => acc + lines.length, 0);
+        let linesProcessed = 0;
+        
+        const allYears = Object.keys(yearlyData);
+
+        for (const year of allYears) {
+            for (const line of yearlyData[year]) {
+                linesProcessed++;
+                if (linesProcessed % 20 === 0) {
+                     ui.showLoading(`Scanning for mistakes... (${linesProcessed}/${totalLines})`);
+                     await new Promise(resolve => setTimeout(resolve, 0)); // Allow UI to update
+                }
+
+                const words = line.rawText.split(/[.,:;[\]()\s]+/).filter(Boolean);
+                words.forEach(word => {
+                    const cleanWord = word.trim().toLowerCase();
+                    if (cleanWord && isNaN(cleanWord) && !ignoredWords.has(cleanWord) && !knowledgeBase.isKnownWord(cleanWord)) {
+                        if (!misspelledWordsData.has(cleanWord)) {
+                            misspelledWordsData.set(cleanWord, []);
+                        }
+                        misspelledWordsData.get(cleanWord).push({
+                            lineId: line.id,
+                            year: year,
+                            isCorrected: false
+                        });
+                    }
+                });
+            }
+        }
+        
+        ui.hideLoading();
+        renderSpellCheckResults();
+        selectors.spellCheckBtn.prop('disabled', false);
+    }
+    
+    function renderSpellCheckResults() {
+        selectors.spellCheckResults.empty();
+        if (misspelledWordsData.size === 0) {
+            selectors.spellCheckResults.html('<div class="alert alert-success">No spelling mistakes found!</div>');
+            return;
+        }
+
+        const sortedWords = Array.from(misspelledWordsData.keys()).sort();
+        
+        sortedWords.forEach(word => {
+            const occurrences = misspelledWordsData.get(word);
+            const total = occurrences.length;
+            const correctedCount = occurrences.filter(o => o.isCorrected).length;
+            
+            let statusColorClass = 'text-danger'; // All wrong
+            if (correctedCount > 0 && correctedCount < total) {
+                statusColorClass = 'text-warning'; // Partially corrected
+            } else if (correctedCount === total) {
+                statusColorClass = 'text-success'; // All corrected
+            }
+            
+            const accordionId = `spell-word-${word}`;
+            const listItemsHtml = occurrences.map((occ, index) => {
+                const lineData = yearlyData[occ.year].find(l => l.id === occ.lineId);
+                const highlightRegex = new RegExp(`\\b(${word})\\b`, 'gi');
+                const highlightedText = lineData.rawText.replace(highlightRegex, `<span class="misspelled-highlight">$1</span>`);
+                const lineDisplay = occ.isCorrected ? lineData.rawText : highlightedText;
+
+                return `
+                    <li class="list-group-item d-flex align-items-center">
+                        <input class="form-check-input me-3" type="checkbox" value="" data-line-id="${occ.lineId}" data-word="${word}" id="check-${word}-${index}">
+                        <label class="form-check-label flex-grow-1" for="check-${word}-${index}">
+                            <strong>[${occ.year}]</strong> ${lineDisplay}
+                        </label>
+                    </li>`;
+            }).join('');
+
+            const accordionItemHtml = `
+                <div class="accordion-item" id="accordion-item-${word}">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${accordionId}">
+                            <strong class="${statusColorClass}">${word}</strong>&nbsp;(${correctedCount}/${total} corrected)
+                        </button>
+                    </h2>
+                    <div id="${accordionId}" class="accordion-collapse collapse" data-bs-parent="#spell-check-results">
+                        <div class="accordion-body">
+                            <div class="d-flex align-items-center gap-2 mb-2 p-2 bg-dark rounded">
+                                <div class="form-check">
+                                    <input class="form-check-input select-all-btn" type="checkbox" data-word="${word}">
+                                    <label class="form-check-label">Select All</label>
+                                </div>
+                                 <div class="form-check">
+                                    <input class="form-check-input select-none-btn" type="checkbox" data-word="${word}">
+                                    <label class="form-check-label">Select None</label>
+                                </div>
+                                <div class="input-group input-group-sm ms-auto">
+                                    <input type="text" class="form-control correction-input" placeholder="Enter correction..." data-word="${word}">
+                                    <button class="btn btn-primary apply-correction-btn" data-word="${word}">Apply</button>
+                                    <button class="btn btn-secondary not-mistake-btn" data-word="${word}">Not a Mistake</button>
+                                </div>
+                            </div>
+                            <ul class="list-group">${listItemsHtml}</ul>
+                        </div>
+                    </div>
+                </div>`;
+            selectors.spellCheckResults.append(accordionItemHtml);
+        });
+    }
+
     
     function attachEventListeners() {
         // Initial load listeners
@@ -253,6 +377,7 @@ const Step1Controller = (function(logger, recognizer, ui) {
 
         header.off(); // Clear previous delegated listeners
         container.off();
+        selectors.spellCheckSection.off();
 
         header.on('change', '#year-select', function() {
             currentYear = $(this).val();
@@ -413,27 +538,112 @@ const Step1Controller = (function(logger, recognizer, ui) {
             errorElements[targetIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
         });     
         
-        const topContainer = selectors.topProceedContainer;
-        const bottomContainer = selectors.bottomProceedContainer;
         $('body').off('click', '#proceed-to-step2-btn').on('click', '#proceed-to-step2-btn', function() {            
             logger.info("Step 1 complete. Passing data to global state.");
             
-            // Create the global state object if it doesn't exist
-            if (!window.appState.step1) {
-                window.appState.step1 = {};
-            }
-            // Pass the clean data to the global state
+            if (!window.appState.step1) window.appState.step1 = {};
             window.appState.step1.finalData = yearlyData;
             
-            // Use the navigation callback provided by the main app controller
-            if (window.navigationCallback) {
-                window.navigationCallback(2);
-            }
+            if (window.navigationCallback) window.navigationCallback(2);
         });                
 
+        // --- NEW: Spell Check Event Listeners ---
+        selectors.spellCheckSection.on('click', '#spell-check-btn', runSpellCheck);
 
+        selectors.spellCheckResults.on('click', '.apply-correction-btn', function() {
+            const word = $(this).data('word');
+            const correction = $(`.correction-input[data-word="${word}"]`).val().trim();
+            if (!correction) {
+                alert("Please enter a correction.");
+                return;
+            }
+
+            $(`#spell-word-${word} input[type="checkbox"]:checked`).each(function() {
+                const lineId = $(this).data('line-id');
+                const occurrences = misspelledWordsData.get(word);
+                const occ = occurrences.find(o => o.lineId === lineId);
+                
+                if (occ) {
+                    const line = yearlyData[occ.year].find(l => l.id === lineId);
+                    const replaceRegex = new RegExp(`\\b${word}\\b`, 'gi');
+                    line.rawText = line.rawText.replace(replaceRegex, correction);
+                    occ.isCorrected = true;
+                }
+            });
+            
+            validateAndRender(); // Update main data view
+            renderSpellCheckResults(); // Update accordion
+        });
+
+        selectors.spellCheckResults.on('click', '.not-mistake-btn', function() {
+            const word = $(this).data('word');
+            if (confirm(`Mark "${word}" as not a mistake? It will be ignored in future checks.`)) {
+                ignoredWords.add(word);
+                misspelledWordsData.delete(word);
+                $(`#accordion-item-${word}`).remove();
+                if (misspelledWordsData.size === 0) renderSpellCheckResults();
+            }
+        });
+        
+        selectors.spellCheckResults.on('change', '.select-all-btn', function() {
+            const word = $(this).data('word');
+            const isChecked = $(this).is(':checked');
+            $(`#spell-word-${word} .list-group-item input[type="checkbox"]`).prop('checked', isChecked);
+            if(isChecked) $(`.select-none-btn[data-word="${word}"]`).prop('checked', false);
+        });
+
+        selectors.spellCheckResults.on('change', '.select-none-btn', function() {
+            const word = $(this).data('word');
+             $(`#spell-word-${word} .list-group-item input[type="checkbox"]`).prop('checked', false);
+             $(`.select-all-btn[data-word="${word}"]`).prop('checked', false);
+             $(this).prop('checked', false);
+        });
+
+        selectors.downloadIgnoredBtn.on('click', function() {
+            if (ignoredWords.size === 0) {
+                alert("No words have been marked as 'Not a mistake'.");
+                return;
+            }
+            const dataStr = JSON.stringify(Array.from(ignoredWords));
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ignored_words.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        selectors.uploadIgnoredBtn.on('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const words = JSON.parse(e.target.result);
+                    if (Array.isArray(words)) {
+                        words.forEach(word => ignoredWords.add(word.toLowerCase()));
+                        logger.info(`Loaded ${words.length} words into the ignore list.`);
+                        
+                        // If a check has been run, remove newly ignored words from results
+                        if (misspelledWordsData.size > 0) {
+                            let updated = false;
+                            ignoredWords.forEach(word => {
+                                if (misspelledWordsData.has(word)) {
+                                    misspelledWordsData.delete(word);
+                                    updated = true;
+                                }
+                            });
+                            if (updated) renderSpellCheckResults();
+                        }
+                    } else { throw new Error("File is not a valid JSON array."); }
+                } catch (err) { alert("Error reading ignored words file."); logger.error(err); }
+            };
+            reader.readAsText(file);
+            $(this).val('');
+        });
     }
 
     return { init };
 
-})(logger, LineRecognizerService, uiService); // Added uiService
+})(logger, LineRecognizerService, uiService, KnowledgeBaseService);

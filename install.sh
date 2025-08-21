@@ -97,6 +97,14 @@ else
     fi
 fi
 
+# 4. Typo.js Spell Checker
+echo -e "\n--- Handling Typo.js Spell Checker ---"
+TYPO_JS_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/typo.js"
+TYPO_AFF_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/dictionaries/en_US/en_US.aff"
+TYPO_DIC_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/dictionaries/en_US/en_US.dic"
+download_file "$TYPO_JS_URL" "lib/typo/typo.js"
+download_file "$TYPO_AFF_URL" "lib/typo/en_US.aff"
+download_file "$TYPO_DIC_URL" "lib/typo/en_US.dic"
 
 # --- Create Placeholder Files ---
 echo -e "\n--- Creating placeholder files ---"
