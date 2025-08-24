@@ -14,7 +14,16 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         spellCheckStats: $('#spell-check-stats'),
         uploadIgnoredBtn: $('#upload-ignored-words'),
         downloadIgnoredBtn: $('#download-ignored-words'),
-        undoNotificationArea: $('#undo-notification-area')
+        undoNotificationArea: $('#undo-notification-area'),
+        findReplaceSection: $('#find-replace-section'),
+        findInput: $('#find-input'),
+        replaceInput: $('#replace-input'),
+        findBtn: $('#find-btn'),
+        replaceBtn: $('#replace-btn'),
+        findResultsContainer: $('#find-results-container'),
+        findResultsList: $('#find-results-list'),
+        findResultsSummary: $('#find-results-summary'),
+        findSelectAll: $('#find-select-all'),
     };
 
 
@@ -26,6 +35,9 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
     let misspelledWordsData = new Map();
     let ignoredWords = new Set();
     let spell; // To hold the SpellChecker object
+
+    // NEW: State for Find and Replace
+    let findResults = [];    
 
     function init(navCallback) {
         logger.info("Initializing Step 1 Controller.");
@@ -96,6 +108,7 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
             selectors.initialLoadSection.hide();
             selectors.editorSection.show();
             selectors.spellCheckSection.show();
+            selectors.findReplaceSection.show(); 
             currentYear = Object.keys(yearlyData).sort()[0];
             validateAndRender();
         }
@@ -324,6 +337,87 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         toast.show();
     }
 
+    async function runFindAndReplaceSearch() {
+        const findTerm = selectors.findInput.val();
+        if (!findTerm) {
+            alert("Please enter a term to find.");
+            return;
+        }
+        const searchType = $('input[name="find-type"]:checked').val();
+        let regex;
+        try {
+            if (searchType === 'word') {
+                regex = new RegExp(`\\b(${findTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})\\b`, 'gi');
+            } else if (searchType === 'regex') {
+                regex = new RegExp(`(${findTerm})`, 'g');
+            } else {
+                regex = new RegExp(`(${findTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+            }
+        } catch (e) {
+            alert("Invalid Regular Expression. Please check your syntax.");
+            return;
+        }
+        selectors.findBtn.prop('disabled', true);
+        ui.showLoading("Searching...");
+        findResults = [];
+        let totalMatches = 0;
+        for (const year of Object.keys(yearlyData).sort()) {
+            let lastDate = "";
+            for (const line of yearlyData[year]) {
+                if (line.type === 'date') lastDate = line.rawText;
+                await new Promise(resolve => setTimeout(resolve, 0));
+                ui.showLoading(`Searching ${year}... (${lastDate})`);
+                const matches = [...line.rawText.matchAll(regex)];
+                if (matches.length > 0) {
+                    totalMatches += matches.length;
+                    findResults.push({
+                        lineId: line.id,
+                        year: year
+                    });
+                }
+            }
+        }
+        ui.hideLoading();
+        renderFindResults(regex, totalMatches);
+        selectors.findBtn.prop('disabled', false);
+    }
+
+    function renderFindResults(regex, totalMatches) {
+        selectors.findResultsList.empty();
+        const findText = selectors.findInput.val();
+        const replaceText = selectors.replaceInput.val();
+
+        if (findResults.length === 0) {
+            selectors.findResultsSummary.text("No matches found.");
+            selectors.findResultsContainer.hide();
+            selectors.replaceBtn.prop('disabled', true); // Explicitly disable if no results
+            return;
+        }
+
+        selectors.findResultsSummary.text(`Found ${totalMatches} match(es) in ${findResults.length} line(s).`);
+        findResults.forEach((result, index) => {
+            const lineData = yearlyData[result.year].find(l => l.id === result.lineId);
+            const highlightedText = lineData.rawText.replace(regex, `<span class="find-highlight">$1</span>`);
+            const listItem = `
+                <div class="list-group-item">
+                    <div class="form-check">
+                        <input class="form-check-input find-result-checkbox" type="checkbox" value="" id="find-check-${index}" data-result-index="${index}" checked>
+                        <label class="form-check-label" for="find-check-${index}">
+                            <strong>[${result.year}]</strong> ${highlightedText}
+                        </label>
+                    </div>
+                </div>`;
+            selectors.findResultsList.append(listItem);
+        });
+
+        selectors.findSelectAll.prop('checked', true);
+        selectors.findResultsContainer.show();
+        
+        // **FIX**: Activate the replace button immediately based on the find/replace text.
+        // This allows replacing with an empty string.
+        selectors.replaceBtn.prop('disabled', findText === replaceText);
+    }    
+
     function attachEventListeners() {
         // DETACH ALL PREVIOUS LISTENERS
         selectors.fileUpload.off();
@@ -334,6 +428,8 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         selectors.spellCheckResults.off();
         selectors.downloadIgnoredBtn.off();
         selectors.uploadIgnoredBtn.off();
+        selectors.findReplaceSection.off();
+        selectors.findResultsContainer.off();        
         $('body').off('click', '#proceed-to-step2-btn');        
         // Initial load listeners
         const fileDataPromises = (files) => Array.from(files).map(file => new Promise((resolve, reject) => {
@@ -659,6 +755,51 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
             reader.readAsText(file);
             $(this).val('');
         });
+
+        selectors.findReplaceSection.on('click', '#find-btn', runFindAndReplaceSearch);
+        selectors.findReplaceSection.on('input', '#find-input, #replace-input', function() {
+            const findText = selectors.findInput.val();
+            const replaceText = selectors.replaceInput.val();
+            const hasResults = findResults.length > 0;
+            // The button is disabled if there are no results OR if the text is identical.
+            selectors.replaceBtn.prop('disabled', !hasResults || findText === replaceText);
+        });
+
+        selectors.findResultsContainer.on('change', '#find-select-all', function() {
+            const isChecked = $(this).is(':checked');
+            $('.find-result-checkbox').prop('checked', isChecked);
+        });
+
+        selectors.findResultsContainer.on('click', '#replace-btn', function() {
+            const findTerm = selectors.findInput.val();
+            const replaceTerm = selectors.replaceInput.val();
+            const searchType = $('input[name="find-type"]:checked').val();
+            let regex;
+            
+            try {
+                if (searchType === 'word') regex = new RegExp(`\\b${findTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'gi');
+                else if (searchType === 'regex') regex = new RegExp(findTerm, 'g');
+                else regex = new RegExp(findTerm.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi');
+            } catch (e) {
+                alert("Invalid find term for replacement."); return;
+            }
+
+            $('.find-result-checkbox:checked').each(function() {
+                const resultIndex = $(this).data('result-index');
+                const result = findResults[resultIndex];
+                const line = yearlyData[result.year].find(l => l.id === result.lineId);
+                if (line) {
+                    line.rawText = line.rawText.replace(regex, replaceTerm);
+                }
+            });
+
+            validateAndRender();
+            selectors.findResultsContainer.hide();
+            selectors.findResultsList.empty();
+            findResults = []; // Clear results after replacement
+            logger.info("Replacement complete.");
+        });             
+
     }
 
     return { init };

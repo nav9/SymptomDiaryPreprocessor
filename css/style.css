@@ -225,6 +225,13 @@ main {
     font-weight: bold;
 }
 
+.find-highlight {
+    background-color: #a37f1a; /* Dark yellow */
+    color: white;
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
 .correction-input {
     max-width: 200px !important;
 }
