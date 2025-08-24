@@ -10,8 +10,6 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
         loadInput: $('#step4-load-input'),
         proceedTopBtn: $('#step4-proceed-top'),
         proceedBottomBtn: $('#step4-proceed-bottom'),
-        step2DataDisplay: $('#step4-step2-data-display'),
-        step3DataDisplay: $('#step4-step3-data-display'),
     };
 
     let state = {};
@@ -28,7 +26,7 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
         'symptom': 4,
         'action': 10,
         'anatomy': 11,
-        'none': 99
+        'none': 9999
     };
 
 
@@ -47,15 +45,13 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
         if (payload) {
             loadState(payload);
         } else {
-            const dataFromStep2 = window.appState?.step2?.finalData;
             const dataFromStep3 = window.appState?.step3?.finalData;
-
             if (!dataFromStep3 || dataFromStep3.groups.length === 0) {
                 selectors.tableBody.html('<tr><td colspan="5" class="text-center alert alert-warning">No data to process. Please complete Step 3 or load a file.</td></tr>');
                 attachEventListeners();
                 return;
             }
-            processNewData(dataFromStep2, dataFromStep3);
+            processNewData(dataFromStep3);
         }
     }
 
@@ -63,20 +59,16 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
         ui.showLoading("Loading saved state for Step 4...");
         setTimeout(() => {
             state = savedState;
-            const dataFromStep2 = window.appState?.step2?.finalData;
-            const dataFromStep3 = window.appState?.step3?.finalData;
-            render(dataFromStep2, dataFromStep3);
+            render();
             attachEventListeners();
             ui.hideLoading();
         }, 50);
     }
     
-    function processNewData(dataFromStep2, dataFromStep3) {
+    function processNewData(dataFromStep3) {
         ui.showLoading("Processing data from previous steps...");
         setTimeout(() => {
-            const groups = dataFromStep3.groups;
-            
-            state.rows = groups.map(group => {
+            state.rows = dataFromStep3.groups.map(group => {
                 const newRow = {
                     groupId: group.id,
                     categoryId: group.categoryId,
@@ -85,29 +77,25 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
                     details: {}
                 };
                 
-                // Pre-fill details from Knowledge Base
                 const mergedDetails = {};
                 group.tags.forEach(tag => {
                     const info = knowledgeBase.getInfo(tag.text);
                     if (info) {
                         for (const [key, value] of Object.entries(info)) {
                             if (!mergedDetails[key]) mergedDetails[key] = new Set();
-                            // Add details, splitting by semicolon to handle multiple entries
                             value.split(';').forEach(v => mergedDetails[key].add(v.trim()));
                         }
                     }
                 });
 
-                // Convert sets back to strings for display
                 for (const key in mergedDetails) {
                     newRow.details[key] = Array.from(mergedDetails[key]).join('; ');
                 }
-
                 return newRow;
             });
             
             sortRows();
-            render(dataFromStep2, dataFromStep3);
+            render();
             attachEventListeners();
             ui.hideLoading();
         }, 50);
@@ -124,35 +112,21 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
     }
 
     function render(dataFromStep2, dataFromStep3) {
-        renderRawDataAccordions(dataFromStep2, dataFromStep3);
         renderHeader();
         renderBody();
     }
 
-    function renderRawDataAccordions(step2Data, step3Data) {
-        selectors.step2DataDisplay.text(step2Data ? JSON.stringify(step2Data, null, 2) : 'Step 2 data is not available.');
-        selectors.step3DataDisplay.text(step3Data ? JSON.stringify(step3Data, null, 2) : 'Step 3 data is not available.');
-    }
 
     function renderHeader() {
-        const searchControls = `
-             <div class="col-md-4">
-                <div class="input-group input-group-sm">
-                    <input type="search" id="step4-search-input" class="form-control" placeholder="Search table...">
-                    <button class="btn btn-outline-secondary" id="step4-search-prev" disabled><i class="fas fa-chevron-up"></i></button>
-                    <button class="btn btn-outline-secondary" id="step4-search-next" disabled><i class="fas fa-chevron-down"></i></button>
-                </div>
-            </div>
-            <div class="col-md-8 text-end" id="step4-search-status"></div>
-        `;
-        // Inject search controls into the sticky header
-        selectors.stickyHeader.find('.d-flex.align-items-center').after(`<div class="row mt-2 align-items-center">${searchControls}</div>`);
-
+        const existingSearch = selectors.stickyHeader.find('#step4-search-input');
+        if (existingSearch.length === 0) {
+            const searchControls = `<div class="row mt-2 align-items-center"><div class="col-md-4"><div class="input-group input-group-sm"><input type="search" id="step4-search-input" class="form-control" placeholder="Search table..."><button class="btn btn-outline-secondary" id="step4-search-prev" disabled><i class="fas fa-chevron-up"></i></button><button class="btn btn-outline-secondary" id="step4-search-next" disabled><i class="fas fa-chevron-down"></i></button></div></div><div class="col-md-8 text-end" id="step4-search-status"></div></div>`;
+            selectors.stickyHeader.find('.d-flex.align-items-center').after(searchControls);
+        }
 
         let headerHtml = '<tr>';
         state.headers.forEach(header => {
             headerHtml += `<th scope="col">${header}`;
-            // Add delete button for custom columns
             if (!DEFAULT_HEADERS.includes(header)) {
                  headerHtml += ` <i class="fas fa-times-circle text-danger delete-column-btn" style="cursor:pointer;" title="Delete '${header}' Column" data-header="${header}"></i>`;
             }
@@ -164,17 +138,14 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
 
     function renderBody() {
         let bodyHtml = '';
-        const dataFromStep3 = window.appState?.step3?.finalData;
-        const categories = dataFromStep3 ? new Map(dataFromStep3.categories.map(c => [c.id, c])) : new Map();
+        const categories = new Map(window.appState?.step3?.finalData?.categories.map(c => [c.id, c]) || []);
 
         state.rows.forEach((row, rowIndex) => {
             bodyHtml += `<tr data-row-index="${rowIndex}">`;
             state.headers.forEach(header => {
                 if (header === 'Tags') {
-                    const category = categories.get(row.categoryId) || { color: '#6c757d', name: 'Unknown' };
-                    const tagsHtml = row.tags.map(tag => 
-                        `<span class="word-tag" style="background-color:${category.color};">${tag.text}</span>`
-                    ).join(' ');
+                    const category = categories.get(row.categoryId) || { color: '#6c757d' };
+                    const tagsHtml = row.tags.map(tag => `<span class="word-tag" style="background-color:${category.color};">${tag.text}</span>`).join(' ');
                     bodyHtml += `<td class="text-nowrap">${tagsHtml}</td>`;
                 } else {
                     const value = row.details[header] || '';
@@ -282,12 +253,10 @@ const Step4Controller = (function(logger, ui, knowledgeBase) {
         });
 
         const proceedAction = function() {
-            if (confirm("Are you sure you want to finalize details and proceed to visualization?")) {
-                if (!window.appState.step4) window.appState.step4 = {};
-                window.appState.step4.finalData = state;
-                logger.info("Step 4 complete. Passing all data to global state for Step 5.");
-                if (navCallback) navCallback(5);
-            }
+            if (!window.appState.step4) window.appState.step4 = {};
+            window.appState.step4.finalData = state;
+            logger.info("Step 4 complete. Passing all data to global state for Step 5.");
+            if (navCallback) navCallback(5);
         };
 
         selectors.proceedTopBtn.on('click', proceedAction);

@@ -114,24 +114,24 @@ main {
 }
 
 
-/* Ensure Font Awesome webfonts are found relative to the css file */
+/* Corrected Font Awesome Path */
 @font-face {
   font-family: 'Font Awesome 6 Free';
   font-style: normal;
   font-weight: 900;
   font-display: block;
-  src: url("../lib/webfonts/fa-solid-900.woff2") format("woff2"),
-       url("../lib/webfonts/fa-solid-900.ttf") format("truetype");
+  src: url("../lib/fontawesome/webfonts/fa-solid-900.woff2") format("woff2"),
+       url("../lib/fontawesome/webfonts/fa-solid-900.ttf") format("truetype");
 }
-
 @font-face {
   font-family: 'Font Awesome 6 Brands';
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url("../lib/webfonts/fa-brands-400.woff2") format("woff2"),
-       url("../lib/webfonts/fa-brands-400.ttf") format("truetype");
+  src: url("../lib/fontawesome/webfonts/fa-brands-400.woff2") format("woff2"),
+       url("../lib/fontawesome/webfonts/fa-brands-400.ttf") format("truetype");
 }
+
 
 /* --- Sticky Header --- */
 #step2-sticky-header {
@@ -197,7 +197,7 @@ main {
 
 /* --- Custom Button Colors --- */
 .btn-custom-green {
-    background-color: #198754; /* Bootstrap's success green */
+    background-color: #198754;
     border-color: #198754;
     color: white;
 }
@@ -207,7 +207,7 @@ main {
 }
 
 .btn-custom-grey {
-    background-color: #6c757d; /* Bootstrap's secondary grey */
+    background-color: #6c757d;
     border-color: #6c757d;
     color: white;
 }
@@ -216,26 +216,27 @@ main {
     border-color: #565e64;
 }
 
-/* --- NEW: Spell Check Highlight --- */
+/* --- Spell Check Styles --- */
 .misspelled-highlight {
-    background-color: #a31a28;
+    background-color: #a31a28; /* Dark red */
     color: white;
     padding: 1px 3px;
     border-radius: 3px;
     font-weight: bold;
 }
 
-
-/* --- ADD NEW STEP 3 STYLES --- */
-#step3-sticky-header {
-    top: 56px; z-index: 1020; background-color: var(--bs-body-bg); border-bottom: 1px solid var(--bs-card-border-color);
+.correction-input {
+    max-width: 200px !important;
 }
 
-#phrase-cards-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: flex-start;
+.undo-toast {
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+}
+
+
+/* --- Step 3 Styles --- */
+#step3-sticky-header {
+    top: 56px; z-index: 1020; background-color: var(--bs-body-bg); border-bottom: 1px solid var(--bs-card-border-color);
 }
 
 .phrase-card {
@@ -244,8 +245,6 @@ main {
     border-radius: 0.375rem;
     padding: 0.5rem 0.75rem;
     line-height: 1.8;
-    flex-grow: 0;
-    flex-shrink: 0;
 }
 
 .word-tag {
@@ -258,52 +257,16 @@ main {
     position: relative;
     white-space: nowrap;
 }
-/* NEW: High-contrast text class */
+
 .tag-text-dark {
     color: #212529 !important; /* Dark text for light backgrounds */
-}
-.alias-icon {
-    font-size: 0.7em;
-    margin-left: 4px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
 }
 
 .word-tag:hover {
     background-color: #6c757d;
 }
 
-.word-tag.tag-selected {
-    background-color: var(--bs-primary); /* Blue */
-    color: white;
-}
-.word-tag.tag-selected:hover {
-    background-color: #0b5ed7; /* Darker blue */
-}
-
-.whitespace {
-    user-select: none; /* Prevent selecting the space between words */
-}
-
-.alias-icon {
-    font-size: 0.7em;
-    margin-left: 4px;
-    opacity: 0.4;
-    transition: opacity 0.2s;
-}
-.word-tag:hover .alias-icon {
-    opacity: 1;
-}
-
-/* --- Step 3: Word Grouping --- */
-#step3-sticky-header {
-    top: 56px;
-    z-index: 1020;
-    background-color: var(--bs-body-bg);
-    border-bottom: 1px solid var(--bs-card-border-color);
-}
-
-/* --- NEW: Category Palette Bar Styles --- */
+/* --- Category Palette Bar Styles --- */
 #category-palette-bar {
     background-color: var(--bs-card-bg);
     padding: 0.5rem;
@@ -321,9 +284,6 @@ main {
     -ms-overflow-style: none; scrollbar-width: none;
 }
 .category-palette-scroll::-webkit-scrollbar { display: none; }
-.category-radio {
-    position: relative;
-}
 .category-radio input[type="radio"] { position: absolute; opacity: 0; }
 .category-radio label {
     display: inline-block; padding: 0.2rem 0.6rem; border-radius: 0.25rem; cursor: pointer;
@@ -336,12 +296,6 @@ main {
     height: 70vh; overflow-y: auto; display: flex; flex-direction: column;
     padding: 0.5rem; border: 1px solid var(--bs-border-color); border-radius: 0.375rem; background-color: var(--bs-tertiary-bg);
 }
-/* --- Tweak Modal Styles --- */
-#edit-categories-modal .category-color-dot {
-    width: 2rem;
-    height: 2rem;
-}
-
 
 #groups-container .groups-area {
     display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start;
@@ -350,70 +304,12 @@ main {
     background-color: var(--bs-card-bg); border: 1px solid var(--bs-border-color); border-radius: 0.25rem;
     padding: 0.2rem; min-height: 32px; transition: box-shadow 0.2s, border-color 0.2s;
 }
-.group-card.drop-hover { border-color: var(--bs-primary); box-shadow: 0 0 10px rgba(var(--bs-primary-rgb), 0.4); }
-.add-group-card {
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    color: #fff; border-style: dashed; gap: 0.5rem; background-color: #198754; border-color: #157347;
-}
-.add-group-card:hover { background-color: #157347; }
-.word-tag {
-    display: inline-block; color: white; padding: 0.15rem 0.4rem; border-radius: 0.2rem;
-    margin: 0.1rem; cursor: grab; font-size: 0.75rem; transition: opacity 0.2s;
-}
+.group-card.drop-hover { border-color: var(--bs-primary); box-shadow: 0 0 10px rgba(13, 110, 253, 0.4); }
 .word-tag:active { cursor: grabbing; }
 .group-card.paint-mode-active { cursor: pointer; border-color: yellow; }
-.tag-text-dark { color: #212529 !important; }
-#edit-categories-modal .category-color-dot { width: 2.2rem; height: 2.2rem; border-radius: 0.25rem; border: 1px solid #fff;}
 
-.group-card.paint-mode-active {
-    cursor: pointer;
-    border-color: yellow;
-}
 
-/* --- ADD NEW STEP 4 STYLES --- */
-#step4-details-table textarea {
-    border: none;
-    background-color: transparent;
-    resize: none;
-    width: 100%;
-    min-height: 50px;
-}
-#step4-details-table textarea:focus {
-    background-color: #495057; /* Highlight on focus */
-}
-
-/* Autocomplete Suggestions */
-#step4-suggestions-container {
-    position: absolute;
-    z-index: 1050; /* Above table content */
-    max-height: 200px;
-    overflow-y: auto;
-    display: none; /* Hidden by default */
-}
-#step4-suggestions-container .list-group-item {
-    cursor: pointer;
-    padding: 0.5rem 0.75rem;
-}
-#step4-suggestions-container .list-group-item:hover {
-    background-color: var(--bs-primary);
-    color: white;
-}
-.word-tag {
-    display: inline-block; color: white; padding: 0.15rem 0.4rem; border-radius: 0.2rem;
-    margin: 0.1rem; cursor: grab; font-size: 0.75rem; transition: opacity 0.2s;
-}
-.word-tag:active { cursor: grabbing; }
-.group-card.paint-mode-active { cursor: pointer; border-color: yellow; }
-.tag-text-dark { color: #212529 !important; }
-/* Styles for Native Color Picker */
-.form-control-color {
-    max-width: 100px;
-    padding: 0.1rem;
-}
-#edit-categories-modal .category-color-dot {
-    width: 2rem; height: 2rem; border-radius: 0.25rem;
-    border: 1px solid var(--bs-border-color);
-}
+/* --- Step 4 Styles --- */
 #step4-details-table th { white-space: nowrap; }
 #step4-details-table td { vertical-align: middle; }
 #step4-details-table .word-tag {
@@ -426,7 +322,6 @@ main {
 #step4-details-table textarea:focus {
     background-color: var(--bs-tertiary-bg); box-shadow: none;
 }
-/* Style for highlighted search result */
 #step4-details-table tr.table-primary > td {
     background-color: var(--bs-primary) !important;
 }

@@ -40,5 +40,40 @@ function showMergeConflictModal(callback) {
     mergeModalInstance.show();
 }
 
-return { showLoading, hideLoading, showMergeConflictModal };
+    /**
+     * NEW: Displays a toast notification with an undo action.
+     * @param {string} message - The message to display.
+     * @param {function} undoCallback - The function to execute when the undo button is clicked.
+     */
+    function showUndoNotification(message, undoCallback) {
+        const toastId = `undo-toast-${Date.now()}`;
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-bg-dark border-0 undo-toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                        <button class="btn btn-sm btn-link text-info p-0 ms-2 undo-action-btn">Undo</button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>`;
+        
+        $('#undo-notification-area').append(toastHtml);
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+        
+        $(`#${toastId} .undo-action-btn`).on('click', function() {
+            undoCallback();
+            toast.hide();
+        });
+
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
+        
+        toast.show();
+    }
+    
+
+return { showLoading, hideLoading, showMergeConflictModal, showUndoNotification };
 })();

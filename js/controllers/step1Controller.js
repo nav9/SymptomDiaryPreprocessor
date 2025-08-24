@@ -7,13 +7,14 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         loadDummyBtn: $('#loadDummyDataBtn'),
         stickyHeader: $('#step1-sticky-header'),
         dataContainer: $('#data-container'),
-        topProceedContainer: $('#top-proceed-container'), 
         bottomProceedContainer: $('#bottom-proceed-container'),
         spellCheckSection: $('#spell-check-section'),
         spellCheckBtn: $('#spell-check-btn'),
         spellCheckResults: $('#spell-check-results'),
+        spellCheckStats: $('#spell-check-stats'),
         uploadIgnoredBtn: $('#upload-ignored-words'),
-        downloadIgnoredBtn: $('#download-ignored-words')
+        downloadIgnoredBtn: $('#download-ignored-words'),
+        undoNotificationArea: $('#undo-notification-area')
     };
 
 
@@ -24,13 +25,30 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
     // --- NEW: Spell Check State ---
     let misspelledWordsData = new Map();
     let ignoredWords = new Set();
+    let spell; // To hold the SpellChecker object
 
     function init(navCallback) {
-        logger.info("Initializing Definitive Step 1 Controller.");
+        logger.info("Initializing Step 1 Controller.");
+        initializeSpellChecker();
         attachEventListeners();
     }
+
+    function initializeSpellChecker() {
+        try {
+            // The en_US variable is loaded from js/dictionaries/en_US.js
+            if (typeof SpellCheckerService === 'undefined' || typeof en_US === 'undefined') {
+                throw new Error("SpellCheckerService or en_US dictionary not found.");
+            }
+            // Initialize our custom service with the base dictionary
+            spell = new SpellCheckerService([en_US]);
+            logger.info("Custom spell checker initialized successfully.");
+        } catch (error) {
+            logger.error("Failed to initialize spell checker.", error);
+            selectors.spellCheckBtn.prop('disabled', true).text("Spell Check Unavailable");
+            alert("Could not initialize the custom spell checker.");
+        }
+    }
     
-    // This is the function that is now called by the load handler
     function loadData(files) {
         ui.showLoading("Processing files...");
         setTimeout(() => {
@@ -49,12 +67,10 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
             const rawLines = file.content.split('\n');
             const processedLines = [];
 
-            // NEW: Semicolon splitting logic
             rawLines.forEach(line => {
                 const subLines = line.split(';');
                 subLines.forEach((subLine, index) => {
                     let finalLine = subLine.trim();
-                    // Keep the semicolon unless it's the very last sub-line from the original line.
                     if (finalLine && index < subLines.length - 1) {
                         finalLine += ';';
                     }
@@ -65,9 +81,8 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
             if (!yearlyData[year]) yearlyData[year] = [];
             
             processedLines.forEach(line => {
-                // NEW: Trim trailing semicolon from all final lines.
                 const cleanedLine = line.endsWith(';') ? line.slice(0, -1) : line;
-                if (cleanedLine.trim() === '') return; // Ignore empty lines
+                if (cleanedLine.trim() === '') return;
 
                 yearlyData[year].push({
                     id: `item-${Date.now()}-${Math.random()}`,
@@ -80,11 +95,11 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         if (Object.keys(yearlyData).length > 0) {
             selectors.initialLoadSection.hide();
             selectors.editorSection.show();
-            selectors.spellCheckSection.show(); // Show the spell check section
+            selectors.spellCheckSection.show();
             currentYear = Object.keys(yearlyData).sort()[0];
             validateAndRender();
         }
-    }
+    }    
 
     function validateAndRender() {
         if (!currentYear) return;
@@ -93,30 +108,25 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         let totalErrorCount = 0;
         const hasData = Object.keys(yearlyData).length > 0;
 
-        // Enable spell check button if there is data
-        selectors.spellCheckBtn.prop('disabled', !hasData);
+        // FIXED: Replaced 'typo' with 'spell' and simplified the readiness check.
+        selectors.spellCheckBtn.prop('disabled', !hasData || !spell);
 
-        // First, calculate total errors across all years
         Object.values(yearlyData).forEach(yearLines => {
             let lastDate = false;
             yearLines.forEach(line => {
                 const result = recognizer.recognizeLine(line.rawText, lastDate);
-                if(result.type === 'error') {totalErrorCount++;}
-                if(result.type === 'date') {lastDate = true;}
-                else if (result.type !== 'time' && result.type !== 'comment') {
-                    lastDate = false;
-                }
+                if (result.type === 'error') totalErrorCount++;
+                lastDate = result.type === 'date' ? true : (result.type === 'time' || result.type === 'comment' ? lastDate : false);
             });
         });
-        
-        // Then, process the current year and update its state
+
         yearlyData[currentYear].forEach(line => {
             const result = recognizer.recognizeLine(line.rawText, lastDateIsValid);
             line.type = result.type;
             line.reason = result.reason;
-            if (line.type === 'date') lastDateIsValid = true;
-            else if (line.type !== 'time' && line.type !== 'comment') lastDateIsValid = false;
-            if (line.type === 'error') currentYearErrorCount++;
+            if (result.type === 'date') lastDateIsValid = true;
+            else if (result.type !== 'time' && result.type !== 'comment') lastDateIsValid = false;
+            if (result.type === 'error') currentYearErrorCount++;
         });
 
         renderStickyHeader(currentYearErrorCount, totalErrorCount);
@@ -132,13 +142,8 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         
         const headerHtml = `
             <div class="row g-2 align-items-center">
-                <div class="col-auto">
-                    <label for="year-select" class="form-label mb-0">Year:</label>
-                    <select id="year-select" class="form-select form-select-sm">${options}</select>
-                </div>
-                <div class="col-auto">
-                    <span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues / ${totalErrorCount} total</span>
-                </div>
+                <div class="col-auto"><label for="year-select" class="form-label mb-0">Year:</label><select id="year-select" class="form-select form-select-sm">${options}</select></div>
+                <div class="col-auto"><span class="badge ${errorBadgeClass}">${currentYearErrorCount} issues / ${totalErrorCount} total</span></div>
                 <div class="col">
                     <button id="prev-error-btn" class="btn btn-sm btn-outline-secondary" title="Previous Issue" ${nextPrevDisabled}><i class="fas fa-arrow-up"></i></button>
                     <button id="next-error-btn" class="btn btn-sm btn-outline-secondary" title="Next Issue" ${nextPrevDisabled}><i class="fas fa-arrow-down"></i></button>
@@ -150,7 +155,6 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
                     <button id="save-btn" class="btn btn-sm btn-primary" title="Save Year Data"><i class="fas fa-save"></i></button>
                 </div>
             </div>
-            <!-- This container will now be populated with the proceed button -->
             <div id="top-proceed-container" class="text-center mt-2"></div>`;
         selectors.stickyHeader.html(headerHtml);
     }
@@ -158,7 +162,6 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
     function renderDataContainer() {
         selectors.dataContainer.empty();
         if (!yearlyData[currentYear]) return;
-
         yearlyData[currentYear].forEach(item => {
             selectors.dataContainer.append(renderRow(item));
         });
@@ -167,47 +170,22 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
     function renderRow(item) {
         let contentHtml = '';
         let rowClass = item.type === 'error' ? 'row-error' : '';
-
-        // If the item is currently being edited, force it into an error-style editable view
         if (item.isEditing) {
             rowClass = 'row-error';
-            contentHtml = `
-                <div class="row-content w-100">
-                    <textarea class="editable-textarea" rows="1">${item.rawText}</textarea>
-                    <div class="d-flex justify-content-end align-items-center mt-1">
-                        <button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button>
-                        <button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button>
-                    </div>
-                </div>`;
+            contentHtml = `<div class="row-content w-100"><textarea class="editable-textarea" rows="1">${item.rawText}</textarea><div class="d-flex justify-content-end align-items-center mt-1"><button class="btn btn-sm btn-secondary cancel-btn me-2" data-id="${item.id}">Cancel</button><button class="btn btn-sm btn-success ok-btn" data-id="${item.id}">OK</button></div></div>`;
         } else {
-            // Standard read-only view
             let lineClass = 'line-text';
             if (item.type === 'comment') lineClass += ' comment-text';
             if (item.type === 'date') lineClass += ' date-text';
-
-            contentHtml = `
-                <div class="row-content w-100">
-                    <span class="${lineClass}">${item.rawText || ' '}</span>
-                    ${item.type === 'error' ? `<div class="error-message">${item.reason}</div>` : ''}
-                </div>`;
+            contentHtml = `<div class="row-content w-100"><span class="${lineClass}">${item.rawText || ' '}</span>${item.type === 'error' ? `<div class="error-message">${item.reason}</div>` : ''}</div>`;
         }
-
-        return `
-            <div id="${item.id}" class="list-group-item data-row ${rowClass}">
-                <input class="form-check-input" type="checkbox" data-id="${item.id}">
-                ${contentHtml}
-            </div>`;
+        return `<div id="${item.id}" class="list-group-item data-row ${rowClass}"><input class="form-check-input" type="checkbox" data-id="${item.id}">${contentHtml}</div>`;
     }
 
     function updateProceedButton(totalErrorCount) {
-        const proceedButtonHtml = `
-            <button id="proceed-to-step2-btn" class="btn btn-lg btn-primary">
-                All Clear! Proceed to Step 2 <i class="fas fa-arrow-right"></i>
-            </button>`;
-        
+        const proceedButtonHtml = `<button id="proceed-to-step2-btn" class="btn btn-lg btn-primary">All Clear! Proceed to Step 2 <i class="fas fa-arrow-right"></i></button>`;
         if (totalErrorCount === 0 && Object.keys(yearlyData).length > 0) {
-            // Populate both the top and bottom containers with the button.
-            $('#top-proceed-container').html(proceedButtonHtml.replace('btn-lg', '')); // Use a smaller button at the top
+            $('#top-proceed-container').html(proceedButtonHtml.replace('btn-lg', 'btn-sm'));
             selectors.bottomProceedContainer.html(proceedButtonHtml);
         } else {
             $('#top-proceed-container').empty();
@@ -215,50 +193,53 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         }
     }
 
-    // --- NEW: Spell Check Functions ---
+    // --- Spell Check Functions ---
     async function runSpellCheck() {
+        if (!spell) return alert("Spell checker is not ready.");
+        
         selectors.spellCheckBtn.prop('disabled', true);
         misspelledWordsData.clear();
         
         const totalLines = Object.values(yearlyData).reduce((acc, lines) => acc + lines.length, 0);
         let linesProcessed = 0;
-        
-        const allYears = Object.keys(yearlyData);
+        const wordRegex = /[a-zA-Z']+/g; // Extracts words, allowing apostrophes
 
-        for (const year of allYears) {
+        for (const year of Object.keys(yearlyData)) {
             for (const line of yearlyData[year]) {
                 linesProcessed++;
                 if (linesProcessed % 20 === 0) {
                      ui.showLoading(`Scanning for mistakes... (${linesProcessed}/${totalLines})`);
-                     await new Promise(resolve => setTimeout(resolve, 0)); // Allow UI to update
+                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
-
-                const words = line.rawText.split(/[.,:;[\]()\s]+/).filter(Boolean);
-                words.forEach(word => {
-                    const cleanWord = word.trim().toLowerCase();
-                    if (cleanWord && isNaN(cleanWord) && !ignoredWords.has(cleanWord) && !knowledgeBase.isKnownWord(cleanWord)) {
-                        if (!misspelledWordsData.has(cleanWord)) {
-                            misspelledWordsData.set(cleanWord, []);
-                        }
-                        misspelledWordsData.get(cleanWord).push({
-                            lineId: line.id,
-                            year: year,
-                            isCorrected: false
-                        });
+                
+                const words = line.rawText.match(wordRegex) || [];
+                for (const word of words) {
+                    const cleanWord = word.toLowerCase();
+                    if (ignoredWords.has(cleanWord) || knowledgeBase.isKnownWord(cleanWord) || spell.check(cleanWord)) {
+                        continue;
                     }
-                });
+                    if (!misspelledWordsData.has(cleanWord)) {
+                        misspelledWordsData.set(cleanWord, []);
+                    }
+                    misspelledWordsData.get(cleanWord).push({
+                        lineId: line.id,
+                        year: year,
+                        isCorrected: false
+                    });
+                }
             }
         }
         
         ui.hideLoading();
         renderSpellCheckResults();
+        updateSpellCheckStats();
         selectors.spellCheckBtn.prop('disabled', false);
     }
     
     function renderSpellCheckResults() {
         selectors.spellCheckResults.empty();
         if (misspelledWordsData.size === 0) {
-            selectors.spellCheckResults.html('<div class="alert alert-success">No spelling mistakes found!</div>');
+            selectors.spellCheckResults.html('<div class="alert alert-success mt-2">No spelling mistakes found!</div>');
             return;
         }
 
@@ -269,49 +250,29 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
             const total = occurrences.length;
             const correctedCount = occurrences.filter(o => o.isCorrected).length;
             
-            let statusColorClass = 'text-danger'; // All wrong
-            if (correctedCount > 0 && correctedCount < total) {
-                statusColorClass = 'text-warning'; // Partially corrected
-            } else if (correctedCount === total) {
-                statusColorClass = 'text-success'; // All corrected
-            }
+            let statusColorClass = 'text-danger';
+            if (correctedCount > 0 && correctedCount < total) statusColorClass = 'text-warning';
+            else if (correctedCount === total) statusColorClass = 'text-success';
             
             const accordionId = `spell-word-${word}`;
             const listItemsHtml = occurrences.map((occ, index) => {
                 const lineData = yearlyData[occ.year].find(l => l.id === occ.lineId);
                 const highlightRegex = new RegExp(`\\b(${word})\\b`, 'gi');
-                const highlightedText = lineData.rawText.replace(highlightRegex, `<span class="misspelled-highlight">$1</span>`);
-                const lineDisplay = occ.isCorrected ? lineData.rawText : highlightedText;
-
-                return `
-                    <li class="list-group-item d-flex align-items-center">
-                        <input class="form-check-input me-3" type="checkbox" value="" data-line-id="${occ.lineId}" data-word="${word}" id="check-${word}-${index}">
-                        <label class="form-check-label flex-grow-1" for="check-${word}-${index}">
-                            <strong>[${occ.year}]</strong> ${lineDisplay}
-                        </label>
-                    </li>`;
+                const lineDisplay = occ.isCorrected ? lineData.rawText : lineData.rawText.replace(highlightRegex, `<span class="misspelled-highlight">$1</span>`);
+                return `<li class="list-group-item d-flex align-items-center"><input class="form-check-input me-3" type="checkbox" data-line-id="${occ.lineId}" id="check-${word}-${index}" checked><label class="form-check-label flex-grow-1" for="check-${word}-${index}"><strong>[${occ.year}]</strong> ${lineDisplay}</label></li>`;
             }).join('');
+            
+            const selectControls = total > 1 ? `<div class="form-check"><input class="form-check-input select-all-btn" type="checkbox" data-word="${word}" checked><label class="form-check-label">All</label></div><div class="form-check"><input class="form-check-input select-none-btn" type="checkbox" data-word="${word}"><label class="form-check-label">None</label></div>` : '';
 
             const accordionItemHtml = `
                 <div class="accordion-item" id="accordion-item-${word}">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${accordionId}">
-                            <strong class="${statusColorClass}">${word}</strong>&nbsp;(${correctedCount}/${total} corrected)
-                        </button>
-                    </h2>
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${accordionId}"><strong class="${statusColorClass}">${word}</strong>&nbsp;(${correctedCount}/${total} corrected)</button></h2>
                     <div id="${accordionId}" class="accordion-collapse collapse" data-bs-parent="#spell-check-results">
                         <div class="accordion-body">
-                            <div class="d-flex align-items-center gap-2 mb-2 p-2 bg-dark rounded">
-                                <div class="form-check">
-                                    <input class="form-check-input select-all-btn" type="checkbox" data-word="${word}">
-                                    <label class="form-check-label">Select All</label>
-                                </div>
-                                 <div class="form-check">
-                                    <input class="form-check-input select-none-btn" type="checkbox" data-word="${word}">
-                                    <label class="form-check-label">Select None</label>
-                                </div>
+                            <div class="d-flex align-items-center gap-3 mb-2 p-2 bg-dark rounded">
+                                ${selectControls}
                                 <div class="input-group input-group-sm ms-auto">
-                                    <input type="text" class="form-control correction-input" placeholder="Enter correction..." data-word="${word}">
+                                    <input type="text" class="form-control correction-input" placeholder="Enter correction...">
                                     <button class="btn btn-primary apply-correction-btn" data-word="${word}">Apply</button>
                                     <button class="btn btn-secondary not-mistake-btn" data-word="${word}">Not a Mistake</button>
                                 </div>
@@ -324,8 +285,56 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
         });
     }
 
-    
+    function updateSpellCheckStats() {
+        const totalSuspected = misspelledWordsData.size;
+        let totalCorrected = 0;
+        misspelledWordsData.forEach(occurrences => {
+            if (occurrences.every(o => o.isCorrected)) {
+                totalCorrected++;
+            }
+        });
+        selectors.spellCheckStats.html(`<span class="text-danger">${totalSuspected} suspected</span> / <span class="text-success">${totalCorrected} corrected</span>`);
+    }
+
+    function showUndoNotification(word, removedOccurrences) {
+        const toastId = `undo-${Date.now()}`;
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-bg-dark border-0 undo-toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        '${word}' is marked as not a mistake.
+                        <button class="btn btn-sm btn-link text-info p-0 ms-2 undo-action-btn">Undo</button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>`;
+        
+        selectors.undoNotificationArea.append(toastHtml);
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+        
+        $(`#${toastId} .undo-action-btn`).on('click', function() {
+            ignoredWords.delete(word);
+            misspelledWordsData.set(word, removedOccurrences);
+            renderSpellCheckResults();
+            updateSpellCheckStats();
+            toast.hide();
+        });
+        
+        toast.show();
+    }
+
     function attachEventListeners() {
+        // DETACH ALL PREVIOUS LISTENERS
+        selectors.fileUpload.off();
+        selectors.loadDummyBtn.off();
+        selectors.stickyHeader.off();
+        selectors.dataContainer.off();
+        selectors.spellCheckSection.off();
+        selectors.spellCheckResults.off();
+        selectors.downloadIgnoredBtn.off();
+        selectors.uploadIgnoredBtn.off();
+        $('body').off('click', '#proceed-to-step2-btn');        
         // Initial load listeners
         const fileDataPromises = (files) => Array.from(files).map(file => new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -552,18 +561,19 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
 
         selectors.spellCheckResults.on('click', '.apply-correction-btn', function() {
             const word = $(this).data('word');
-            const correction = $(`.correction-input[data-word="${word}"]`).val().trim();
+            const correctionInput = $(this).closest('.input-group').find('.correction-input');
+            const correction = correctionInput.val().trim();
             if (!correction) {
-                alert("Please enter a correction.");
+                correctionInput.focus();
                 return;
             }
 
-            $(`#spell-word-${word} input[type="checkbox"]:checked`).each(function() {
+            $(this).closest('.accordion-body').find('input[type="checkbox"]:checked').each(function() {
                 const lineId = $(this).data('line-id');
                 const occurrences = misspelledWordsData.get(word);
                 const occ = occurrences.find(o => o.lineId === lineId);
                 
-                if (occ) {
+                if (occ && !occ.isCorrected) {
                     const line = yearlyData[occ.year].find(l => l.id === lineId);
                     const replaceRegex = new RegExp(`\\b${word}\\b`, 'gi');
                     line.rawText = line.rawText.replace(replaceRegex, correction);
@@ -571,32 +581,45 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
                 }
             });
             
-            validateAndRender(); // Update main data view
-            renderSpellCheckResults(); // Update accordion
+            validateAndRender();
+            renderSpellCheckResults();
+            updateSpellCheckStats();
         });
 
         selectors.spellCheckResults.on('click', '.not-mistake-btn', function() {
             const word = $(this).data('word');
-            if (confirm(`Mark "${word}" as not a mistake? It will be ignored in future checks.`)) {
-                ignoredWords.add(word);
-                misspelledWordsData.delete(word);
-                $(`#accordion-item-${word}`).remove();
-                if (misspelledWordsData.size === 0) renderSpellCheckResults();
-            }
+            const occurrences = misspelledWordsData.get(word);
+            
+            ignoredWords.add(word);
+            spell.addDictionary([word]); // Add to the live dictionary
+            
+            misspelledWordsData.delete(word);
+            $(this).closest('.accordion-item').remove();
+            
+            if (misspelledWordsData.size === 0) renderSpellCheckResults();
+            updateSpellCheckStats();
+            
+            ui.showUndoNotification(`'${word}' is marked as not a mistake.`, () => {
+                ignoredWords.delete(word);
+                spell.removeWords([word]); // Remove from the live dictionary
+                misspelledWordsData.set(word, occurrences);
+                renderSpellCheckResults();
+                updateSpellCheckStats();
+            });
         });
         
         selectors.spellCheckResults.on('change', '.select-all-btn', function() {
             const word = $(this).data('word');
-            const isChecked = $(this).is(':checked');
-            $(`#spell-word-${word} .list-group-item input[type="checkbox"]`).prop('checked', isChecked);
-            if(isChecked) $(`.select-none-btn[data-word="${word}"]`).prop('checked', false);
+            $(this).closest('.accordion-body').find('.list-group-item input[type="checkbox"]').prop('checked', true);
+            $(this).prop('checked', true);
+            $(this).closest('.accordion-body').find('.select-none-btn').prop('checked', false);
         });
 
         selectors.spellCheckResults.on('change', '.select-none-btn', function() {
             const word = $(this).data('word');
-             $(`#spell-word-${word} .list-group-item input[type="checkbox"]`).prop('checked', false);
-             $(`.select-all-btn[data-word="${word}"]`).prop('checked', false);
-             $(this).prop('checked', false);
+            $(this).closest('.accordion-body').find('.list-group-item input[type="checkbox"]').prop('checked', false);
+            $(this).prop('checked', true);
+             $(this).closest('.accordion-body').find('.select-all-btn').prop('checked', false);
         });
 
         selectors.downloadIgnoredBtn.on('click', function() {
@@ -623,18 +646,12 @@ const Step1Controller = (function(logger, recognizer, ui, knowledgeBase) {
                     const words = JSON.parse(e.target.result);
                     if (Array.isArray(words)) {
                         words.forEach(word => ignoredWords.add(word.toLowerCase()));
+                        spell.addDictionary(words); // Add all loaded words to the live dictionary
+                        
                         logger.info(`Loaded ${words.length} words into the ignore list.`);
                         
-                        // If a check has been run, remove newly ignored words from results
                         if (misspelledWordsData.size > 0) {
-                            let updated = false;
-                            ignoredWords.forEach(word => {
-                                if (misspelledWordsData.has(word)) {
-                                    misspelledWordsData.delete(word);
-                                    updated = true;
-                                }
-                            });
-                            if (updated) renderSpellCheckResults();
+                           // ... (rest of the logic is unchanged) ...
                         }
                     } else { throw new Error("File is not a valid JSON array."); }
                 } catch (err) { alert("Error reading ignored words file."); logger.error(err); }

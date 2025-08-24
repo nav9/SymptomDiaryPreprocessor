@@ -14,7 +14,7 @@ FONT_AWESOME_VERSION="6.5.2"
 
 # --- Directory Creation ---
 echo "Creating project directories..."
-mkdir -p css js data lib/bootstrap lib/jquery lib/fontawesome
+mkdir -p css js data lib/bootstrap lib/jquery lib/fontawesome 
 mkdir -p js/controllers js/services js/ui js/utils
 echo "Directories created successfully."
 
@@ -97,14 +97,21 @@ else
     fi
 fi
 
-# 4. Typo.js Spell Checker
-echo -e "\n--- Handling Typo.js Spell Checker ---"
-TYPO_JS_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/typo.js"
-TYPO_AFF_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/dictionaries/en_US/en_US.aff"
-TYPO_DIC_URL="https://cdn.jsdelivr.net/npm/typo-js@1.2.1/dictionaries/en_US/en_US.dic"
-download_file "$TYPO_JS_URL" "lib/typo/typo.js"
-download_file "$TYPO_AFF_URL" "lib/typo/en_US.aff"
-download_file "$TYPO_DIC_URL" "lib/typo/en_US.dic"
+
+# Convert the raw text dictionary into the required JS format
+if [ -f "$RAW_DICT_PATH" ]; then
+    echo "Converting dictionary file to JS format..."
+    # Start the JS file with the variable assignment
+    echo "var en_US = [" > "$FINAL_DICT_PATH"
+    # Process the text file: escape single quotes, wrap each line in quotes, add a comma, and append to the JS file
+    awk '{gsub(/\x27/, "\\\x27"); printf "\x27%s\x27,\n", $0}' "$RAW_DICT_PATH" >> "$FINAL_DICT_PATH"
+    # Append the closing bracket and semicolon
+    echo "];" >> "$FINAL_DICT_PATH"
+    echo "Dictionary conversion complete."
+else
+    echo "ERROR: Raw dictionary file not found. Cannot create JS dictionary."
+    exit 1
+fi
 
 # --- Create Placeholder Files ---
 echo -e "\n--- Creating placeholder files ---"
@@ -123,6 +130,7 @@ touch js/controllers/step1Controller.js # Logic for Step 1
 touch js/controllers/step2Controller.js # Logic for Step 2
 touch js/controllers/step3Controller.js 
 touch js/controllers/step4Controller.js
+touch js/controllers/step5Controller.js
 touch js/services/lineRecognizerService.js
 touch js/services/validatorService.js
 touch js/services/phraseService.js
